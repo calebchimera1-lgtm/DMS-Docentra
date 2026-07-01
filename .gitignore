@@ -44,3 +44,7 @@ docker/volumes/
 ## Logs
 logs/
 *.log
+
+## Web tests
+web/coverage/
+web/tsconfig.tsbuildinfo
