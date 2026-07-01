@@ -1,0 +1,635 @@
+// DOCENTRA - Enterprise Document Management System
+// Prisma schema - PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Multi-tenant organization structure
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  logoUrl   String?
+  theme     Json?
+  isActive  Boolean  @default(true)
+  storageQuotaBytes BigInt @default(107374182400) // 100 GB default
+  storageUsedBytes  BigInt @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branches     Branch[]
+  departments  Department[]
+  users        User[]
+  roles        Role[]
+  folders      Folder[]
+  documents    Document[]
+  tags         Tag[]
+  workflows    WorkflowTemplate[]
+  auditLogs    AuditLog[]
+  notifications Notification[]
+  retentionPolicies RetentionPolicy[]
+
+  @@map("organizations")
+}
+
+model Branch {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  code           String
+  address        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  departments  Department[]
+  users        User[]
+
+  @@unique([organizationId, code])
+  @@map("branches")
+}
+
+model Department {
+  id             String   @id @default(uuid())
+  organizationId String
+  branchId       String?
+  name           String
+  code           String
+  parentId       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch       Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  parent       Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children     Department[] @relation("DepartmentHierarchy")
+  users        User[]
+
+  @@unique([organizationId, code])
+  @@map("departments")
+}
+
+// ---------------------------------------------------------------------------
+// Auth & RBAC
+// ---------------------------------------------------------------------------
+
+model User {
+  id                  String    @id @default(uuid())
+  organizationId      String
+  branchId            String?
+  departmentId        String?
+  email               String
+  passwordHash        String
+  firstName           String
+  lastName            String
+  avatarUrl           String?
+  phone               String?
+  isActive            Boolean   @default(true)
+  emailVerifiedAt     DateTime?
+  mfaEnabled          Boolean   @default(false)
+  mfaSecret           String?
+  mfaBackupCodes      String[]
+  passwordChangedAt   DateTime  @default(now())
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch       Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  department   Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  roles              UserRole[]
+  sessions            Session[]
+  refreshTokens       RefreshToken[]
+  documentsCreated    Document[]        @relation("DocumentCreatedBy")
+  documentVersions    DocumentVersion[]
+  favorites           Favorite[]
+  comments            Comment[]
+  auditLogs           AuditLog[]
+  notifications       Notification[]
+  workflowApprovals   WorkflowStepInstance[] @relation("Approver")
+  signatureRequests   SignatureRequest[]     @relation("RequestedBy")
+  signatures          Signature[]
+  temporaryAccesses   TemporaryAccess[]      @relation("AccessGrantedTo")
+  passwordResetTokens PasswordResetToken[]
+
+  @@unique([organizationId, email])
+  @@map("users")
+}
+
+model Role {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  description    String?
+  isSystem       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  permissions  RolePermission[]
+  users        UserRole[]
+
+  @@unique([organizationId, name])
+  @@map("roles")
+}
+
+model Permission {
+  id          String @id @default(uuid())
+  key         String @unique // e.g. "document:create", "workflow:approve"
+  description String?
+  module      String // e.g. "documents", "workflow", "admin"
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model TemporaryAccess {
+  id           String   @id @default(uuid())
+  userId       String
+  resourceType String // "document" | "folder"
+  resourceId   String
+  permission   String // "view" | "edit" | "download"
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation("AccessGrantedTo", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("temporary_accesses")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  deviceName   String?
+  ipAddress    String?
+  userAgent    String?
+  isActive     Boolean  @default(true)
+  lastActiveAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  sessionId String?
+  revoked   Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  used      Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Folders, Documents, Versions, Tags
+// ---------------------------------------------------------------------------
+
+model Folder {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  parentId       String?
+  path           String   // materialized path e.g. /root-id/child-id
+  colorCode      String?
+  isArchive      Boolean  @default(false)
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parent       Folder?      @relation("FolderHierarchy", fields: [parentId], references: [id])
+  children     Folder[]     @relation("FolderHierarchy")
+  documents    Document[]
+
+  @@index([organizationId, parentId])
+  @@map("folders")
+}
+
+model Document {
+  id             String    @id @default(uuid())
+  organizationId String
+  folderId       String?
+  name           String
+  description    String?
+  fileType       String // pdf, docx, xlsx, image, video, etc.
+  mimeType       String
+  currentVersion Int       @default(1)
+  sizeBytes      BigInt    @default(0)
+  storageKey     String // path/key in storage backend for current version
+  checksum       String? // sha-256 for duplicate detection
+  ocrText        String? // extracted text for search
+  category       String?
+  documentNumber String?
+  isLocked       Boolean   @default(false)
+  lockedById     String?
+  lockedAt       DateTime?
+  isFavorite     Boolean   @default(false)
+  status         DocumentStatus @default(ACTIVE)
+  confidentiality Confidentiality @default(INTERNAL)
+  createdById    String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+  permanentlyDeletedAt DateTime?
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  folder       Folder?           @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  createdBy    User              @relation("DocumentCreatedBy", fields: [createdById], references: [id])
+  versions     DocumentVersion[]
+  tags         DocumentTag[]
+  metadataFields DocumentMetadata[]
+  favorites    Favorite[]
+  comments     Comment[]
+  workflowInstances WorkflowInstance[]
+  signatureRequests SignatureRequest[]
+  shareLinks   ShareLink[]
+
+  @@index([organizationId, folderId])
+  @@index([checksum])
+  @@map("documents")
+}
+
+enum DocumentStatus {
+  ACTIVE
+  DRAFT
+  ARCHIVED
+  RECYCLED
+}
+
+enum Confidentiality {
+  PUBLIC
+  INTERNAL
+  CONFIDENTIAL
+  RESTRICTED
+}
+
+model DocumentVersion {
+  id           String   @id @default(uuid())
+  documentId   String
+  versionNumber Int
+  storageKey   String
+  sizeBytes    BigInt
+  checksum     String?
+  comment      String?
+  createdById  String
+  createdAt    DateTime @default(now())
+
+  document  Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdBy User     @relation(fields: [createdById], references: [id])
+
+  @@unique([documentId, versionNumber])
+  @@map("document_versions")
+}
+
+model Tag {
+  id             String @id @default(uuid())
+  organizationId String
+  name           String
+  colorCode      String?
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  documents    DocumentTag[]
+
+  @@unique([organizationId, name])
+  @@map("tags")
+}
+
+model DocumentTag {
+  documentId String
+  tagId      String
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, tagId])
+  @@map("document_tags")
+}
+
+model DocumentMetadata {
+  id         String @id @default(uuid())
+  documentId String
+  fieldName  String
+  fieldValue String
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@map("document_metadata")
+}
+
+model Favorite {
+  userId     String
+  documentId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@id([userId, documentId])
+  @@map("favorites")
+}
+
+model Comment {
+  id         String   @id @default(uuid())
+  documentId String
+  userId     String
+  body       String
+  parentId   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  document Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent   Comment?  @relation("CommentThread", fields: [parentId], references: [id])
+  replies  Comment[] @relation("CommentThread")
+
+  @@map("comments")
+}
+
+model ShareLink {
+  id            String    @id @default(uuid())
+  documentId    String
+  token         String    @unique
+  passwordHash  String?
+  viewOnly      Boolean   @default(false)
+  maxDownloads  Int?
+  downloadCount Int       @default(0)
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("share_links")
+}
+
+// ---------------------------------------------------------------------------
+// Workflow automation
+// ---------------------------------------------------------------------------
+
+model WorkflowTemplate {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  description    String?
+  isActive       Boolean  @default(true)
+  slaHours       Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  steps        WorkflowStep[]
+  instances    WorkflowInstance[]
+
+  @@map("workflow_templates")
+}
+
+model WorkflowStep {
+  id            String   @id @default(uuid())
+  templateId    String
+  stepOrder     Int
+  name          String
+  approverRoleId String? // approve by anyone with this role
+  approverUserId String? // or approve by specific user
+  isParallel    Boolean  @default(false)
+  slaHours      Int?
+
+  template          WorkflowTemplate       @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  stepInstances      WorkflowStepInstance[]
+
+  @@map("workflow_steps")
+}
+
+model WorkflowInstance {
+  id           String   @id @default(uuid())
+  templateId   String
+  documentId   String
+  status       WorkflowStatus @default(PENDING)
+  currentStep  Int      @default(1)
+  initiatedById String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  completedAt  DateTime?
+
+  template WorkflowTemplate       @relation(fields: [templateId], references: [id])
+  document Document               @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  steps    WorkflowStepInstance[]
+
+  @@map("workflow_instances")
+}
+
+enum WorkflowStatus {
+  PENDING
+  IN_PROGRESS
+  APPROVED
+  REJECTED
+  ESCALATED
+  CANCELLED
+}
+
+model WorkflowStepInstance {
+  id           String   @id @default(uuid())
+  workflowInstanceId String
+  workflowStepId String
+  approverId   String?
+  status       StepStatus @default(PENDING)
+  comment      String?
+  actedAt      DateTime?
+  dueAt        DateTime?
+  createdAt    DateTime @default(now())
+
+  workflowInstance WorkflowInstance @relation(fields: [workflowInstanceId], references: [id], onDelete: Cascade)
+  step             WorkflowStep     @relation(fields: [workflowStepId], references: [id])
+  approver         User?            @relation("Approver", fields: [approverId], references: [id])
+
+  @@map("workflow_step_instances")
+}
+
+enum StepStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  DELEGATED
+  SKIPPED
+}
+
+// ---------------------------------------------------------------------------
+// E-Signatures
+// ---------------------------------------------------------------------------
+
+model SignatureRequest {
+  id            String   @id @default(uuid())
+  documentId    String
+  requestedById String
+  status        SignatureRequestStatus @default(PENDING)
+  createdAt     DateTime @default(now())
+  completedAt   DateTime?
+
+  document    Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  requestedBy User        @relation("RequestedBy", fields: [requestedById], references: [id])
+  signatories Signature[]
+
+  @@map("signature_requests")
+}
+
+enum SignatureRequestStatus {
+  PENDING
+  PARTIALLY_SIGNED
+  COMPLETED
+  DECLINED
+  CANCELLED
+}
+
+model Signature {
+  id                 String   @id @default(uuid())
+  signatureRequestId String
+  signerId           String
+  signatureImage     String? // base64 / storage key of drawn signature
+  typedName          String?
+  signatureHash       String  // hash of signed artifact for integrity verification
+  ipAddress           String?
+  status              SignatureStatus @default(PENDING)
+  signedAt            DateTime?
+  createdAt           DateTime @default(now())
+
+  signatureRequest SignatureRequest @relation(fields: [signatureRequestId], references: [id], onDelete: Cascade)
+  signer           User             @relation(fields: [signerId], references: [id])
+
+  @@map("signatures")
+}
+
+enum SignatureStatus {
+  PENDING
+  SIGNED
+  DECLINED
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String
+  type           String // "workflow", "mention", "expiry", "system", ...
+  title          String
+  message        String
+  data           Json?
+  isRead         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+// ---------------------------------------------------------------------------
+// Audit Log
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String?
+  action         String // e.g. "document.upload", "auth.login"
+  resourceType   String?
+  resourceId     String?
+  ipAddress      String?
+  userAgent      String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([userId])
+  @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Compliance / Retention
+// ---------------------------------------------------------------------------
+
+model SavedSearch {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String
+  name           String
+  queryJson      Json
+  createdAt      DateTime @default(now())
+
+  @@map("saved_searches")
+}
+
+model RetentionPolicy {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  category       String?
+  retentionDays  Int
+  legalHold      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("retention_policies")
+}

@@ -1,0 +1,46 @@
+## Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dist/
+build/
+coverage/
+.env
+.env.*
+!.env.example
+
+## Backend
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/dist/
+backend/tests/tmp-uploads/
+backend/.env
+
+## Web
+web/dist/
+web/.vite/
+
+## Flutter / Dart
+mobile/.dart_tool/
+mobile/.packages
+mobile/build/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/android/.gradle/
+mobile/**/*.iml
+
+## IDE
+.idea/
+.vscode/
+*.swp
+*.DS_Store
+
+## Docker
+docker/volumes/
+
+## Logs
+logs/
+*.log
