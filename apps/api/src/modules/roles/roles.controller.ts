@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { PERMISSIONS } from "@omniflow/shared";
+import { AuditEntity } from "../../common/decorators/audit-entity.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { RequirePermissions } from "../../common/decorators/require-permissions.decorator";
 import type { RequestUser } from "../auth/interfaces/jwt-payload.interface";
@@ -12,6 +13,7 @@ import { RolesService } from "./roles.service";
 @ApiBearerAuth()
 @Controller("roles")
 @RequirePermissions(PERMISSIONS.ROLES_MANAGE)
+@AuditEntity("Role")
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 

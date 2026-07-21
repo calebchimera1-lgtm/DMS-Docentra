@@ -3,9 +3,16 @@ kind: Kustomization
 namespace: omniflow
 resources:
   - namespace.yaml
+  - configmap.yaml
   - api-deployment.yaml
   - web-deployment.yaml
+  - worker-deployment.yaml
+  - redis-deployment.yaml
+  - ingress.yaml
+  - hpa.yaml
 
-# Full manifests (HPA, ConfigMaps, Secrets, Ingress, per-service resource
-# limits) are fleshed out once the API/web images are built and pushed in
-# CI — see Milestone 6 (Core framework) and the CI/CD workflow.
+# secret.example.yaml is intentionally NOT listed here — copy it to
+# secret.yaml, fill in real values, and `kubectl apply -f` it directly
+# (or, better, manage secrets via your cluster's secrets-manager
+# integration). Never let a real secret.yaml get picked up by this
+# kustomization / committed to git.

@@ -31,11 +31,13 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
+      "@apollo/protobufjs",
       "@nestjs/core",
       "@prisma/client",
       "@prisma/engines",
       "@scarf/scarf",
       "esbuild",
+      "msgpackr-extract",
       "prisma",
       "sharp"
     ]

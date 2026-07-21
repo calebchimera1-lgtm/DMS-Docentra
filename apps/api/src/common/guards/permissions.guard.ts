@@ -3,6 +3,7 @@ import { Reflector } from "@nestjs/core";
 import type { PermissionKey } from "@omniflow/shared";
 import { AuthorizationService } from "../authorization/authorization.service";
 import { PERMISSIONS_KEY } from "../decorators/require-permissions.decorator";
+import { getRequestFromContext } from "../utils/execution-context.util";
 import type { RequestUser } from "../../modules/auth/interfaces/jwt-payload.interface";
 
 /**
@@ -27,7 +28,7 @@ export class PermissionsGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<{ user?: RequestUser }>();
+    const request = getRequestFromContext(context) as unknown as { user?: RequestUser };
     if (!request.user) {
       return false;
     }

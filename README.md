@@ -31,7 +31,7 @@ omniflow/
   apps/
     web/        Next.js frontend (App Router, Tailwind, shadcn/ui)
     api/        NestJS backend (REST + GraphQL, modular monolith, microservice-ready)
-    worker/     Background job processor (added in Milestone 6)
+    worker/     Background job processor (BullMQ/Redis) — session cleanup, webhook delivery
   packages/
     database/   Prisma schema, migrations, seed scripts — shared by api/worker
     shared/     Shared TypeScript types, DTOs, constants (used by api + web)
@@ -72,16 +72,23 @@ Built and reviewed one at a time, in this order:
       theme, and a dashboard home with live stat tiles, an activity
       chart, and a recent-activity feed pulled from the API. See
       [docs/architecture](docs/architecture/README.md#frontend-appsweb-added-in-milestone-5).
-- [ ] **6. Core framework** — GraphQL, Swagger, audit logging,
-      notifications, realtime (Socket.IO), plugin system, file storage,
-      job queue/worker, security middleware, Kubernetes manifests.
+- [x] **6. Core framework** — a code-first GraphQL API alongside REST,
+      Swagger docs, a global audit-log interceptor, notifications with a
+      JWT-authenticated Socket.IO gateway, S3-compatible file storage &
+      attachments, a DB-backed plugin system with an event-bridge to a
+      BullMQ job queue, a standalone `apps/worker` consumer, and hardened
+      security middleware (helmet, compression, GraphQL-aware rate
+      limiting). Kubernetes manifests (base + production overlay) round
+      out deployment. See [docs/api](docs/api/README.md#core-framework-milestone-6)
+      and [docs/deployment](docs/deployment/README.md).
 - [ ] **7+. Business modules** — CRM, Sales, Inventory, Accounting, HR,
       Projects, and the rest, added one at a time.
 
 ## Getting started (local development)
 
 Prerequisites: Node.js 20+, pnpm 9+, Docker (for Postgres/Redis/
-Elasticsearch/MinIO).
+Elasticsearch/MinIO). Redis must be running for the API to boot — the
+job queue (BullMQ) connects to it at startup.
 
 ```bash
 # 1. Install dependencies
@@ -93,18 +100,22 @@ docker compose up postgres redis elasticsearch minio -d
 # 3. Configure env
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
+cp apps/worker/.env.example apps/worker/.env
 cp packages/database/.env.example packages/database/.env
 
 # 4. Apply migrations and seed demo data
 pnpm db:migrate
 pnpm db:seed
 
-# 5. Run the apps
+# 5. Run the apps (web, api, and worker together)
 pnpm dev
 ```
 
-- API: http://localhost:4000/api/v1 (Swagger docs at `/api/docs`)
+- API: http://localhost:4000/api/v1 (Swagger docs at `/api/docs`,
+  GraphQL at `/api/v1/graphql`)
 - Web: http://localhost:3000 — sign in at `/login` and land on the dashboard
+- Worker: no HTTP surface — runs in the background processing queued
+  jobs (session cleanup, webhook delivery); logs to stdout
 
 Seeded demo login: company slug `omniflow-demo`, email
 `admin@omniflow-demo.com`, password `Admin@12345` — or register your own

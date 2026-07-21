@@ -1,0 +1,9 @@
+{
+  "extends": "@omniflow/config/typescript/nestjs.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "baseUrl": "./src"
+  },
+  "include": ["src"]
+}

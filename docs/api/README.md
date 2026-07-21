@@ -170,3 +170,143 @@ Source: `apps/api/src/modules/dashboard/`.
   — audit log activity, grouped by action or as a raw recent feed. Gated
   behind `audit_logs:read`, so a low-privilege user simply doesn't see
   those cards (the web app hides them on a 403 rather than erroring).
+
+## Core framework (Milestone 6)
+
+### Audit logging
+
+Source: `apps/api/src/common/audit/`.
+
+Mutating REST routes get an audit-log entry automatically — no
+hand-written `prisma.auditLog.create(...)` call needed in the
+controller. Decorate a controller (or a single handler, to override)
+with `@AuditEntity("EntityName")`; the global `AuditInterceptor` infers
+the action from the HTTP verb (`POST` → `CREATE`, `PATCH`/`PUT` →
+`UPDATE`, `DELETE` → `DELETE`; `GET` is never logged) and the entity id
+from the response body's `id` field or the `:id` route param. The write
+is awaited before the response completes (not fire-and-forget) — an
+audit trail a client can't yet see if it queries immediately after
+isn't trustworthy — but a failure to write the audit log never fails
+the request itself. `AuthService` still writes its own entries directly
+for events that don't map to a CRUD verb (login, logout, password
+reset).
+
+### Notifications & realtime
+
+Source: `apps/api/src/modules/notifications/`, `apps/api/src/realtime/`,
+`apps/api/src/common/events/domain-events.ts`.
+
+- `GET /notifications`, `GET /notifications/unread-count`,
+  `POST /notifications/:id/read`, `POST /notifications/read-all` — a
+  user's own notifications only.
+- Notifications are created by **event listeners**, not direct calls
+  from the module that triggered them: `NotificationsService.create()`
+  emits `notification.created` on an in-process event bus
+  (`@nestjs/event-emitter`); `NotificationTriggersListener` reacts to
+  `user.created` (welcome notification) and `role.granted` (access
+  change notice) by calling it. Adding "when X happens, notify Y" for a
+  future module is a new `@OnEvent` listener, not a new dependency on
+  `NotificationsService` from the module that emits X.
+- `RealtimeGateway` (Socket.IO, namespace `/realtime`) authenticates the
+  handshake with the same access-token JWT used for REST (`auth: { token }`),
+  joins each connection to `user:<id>` and `company:<id>` rooms, and
+  listens for the same `notification.created` event to push a live
+  `notification` message to the recipient's room. Verified end-to-end
+  with a real client (register → connect → grant a role from a second
+  session → live push received) rather than just unit-tested, since a
+  mocked Socket.IO server wouldn't prove the room-based auth/targeting
+  actually works.
+
+### File storage & attachments
+
+Source: `apps/api/src/common/storage/`, `apps/api/src/modules/attachments/`.
+
+`StorageService` wraps `@aws-sdk/client-s3` — works against MinIO
+locally (`S3_ENDPOINT` set, `forcePathStyle: true`) and real AWS S3 in
+production (`S3_ENDPOINT` unset) with no code change. `POST /attachments`
+(multipart, 25MB cap enforced both at the multer layer and in the
+service) stores a file under any record via `entityType`/`entityId`
+(the same polymorphic pattern as `comments` and `audit_logs`);
+`GET /attachments/:id/download` returns a short-lived signed URL rather
+than proxying the file through the API. Not verified against a live
+MinIO in this environment (no Docker daemon / network access to fetch a
+MinIO binary in the sandbox this was built in) — covered by unit tests
+with a mocked S3 client instead; verify against the real
+`docker-compose` MinIO service before relying on it in production.
+
+### GraphQL
+
+Source: `apps/api/src/app.module.ts` (driver setup), a `*.resolver.ts` +
+`graphql/*.type.ts` pair per module, schema served at `/api/v1/graphql`
+(also written to `apps/api/src/schema.gql` at boot — code-first,
+gitignored, regenerated every start).
+
+Every REST guard/decorator (`JwtAuthGuard`, `PermissionsGuard`,
+`AppThrottlerGuard`, `@RequirePermissions`, `@CurrentUser`) works
+unchanged for GraphQL — `getRequestFromContext()`
+(`common/utils/execution-context.util.ts`) is the one place that branches
+on transport type (`context.getType() === "graphql"` → pull `req` out of
+the Apollo context; otherwise `context.switchToHttp()`), so every other
+piece of shared auth/authz code stays transport-agnostic. Resolvers are
+thin — they call the same `*Service` methods the REST controllers do, so
+GraphQL and REST are two views over one business-logic layer, never two
+implementations that could drift.
+
+Current coverage: `me`, `users`, `user`, `roles`, `role`, `branches`,
+`branch`, `dashboardSummary`, `notifications`, `unreadNotificationCount`
+queries, and one mutation (`markNotificationRead`). Broader mutation
+coverage (create/update/delete for users, roles, branches) is a
+deliberate fast-follow, not a gap in the guard/resolver plumbing — REST
+already covers all of it today.
+
+### Plugin system
+
+Source: `apps/api/src/modules/plugins/`.
+
+`Plugin` (global catalog, seeded on boot like the permission catalog)
+and `CompanyPlugin` (per-company install/enable state + JSON config) are
+the Milestone 2 schema tables this finally wires up.
+`GET /plugins`, `GET /plugins/installed`, `POST /plugins/:key/enable`
+(body: `{ config }`), `POST /plugins/:key/disable` — all behind
+`settings:manage`.
+
+The extension point is the same domain-event bus notifications use:
+`PluginEventBridgeService` listens for `notification.created`, and for
+any company with the built-in `webhook-notifier` plugin enabled with a
+`webhookUrl` configured, hands off to the job queue (below) rather than
+making the outbound HTTP call inline. Adding a second plugin reacting to
+a second event is a catalog entry plus another `@OnEvent` branch in the
+bridge — the pattern doesn't change. Verified end-to-end with a real
+worker process and a local HTTP receiver: enable the plugin → trigger an
+event → confirm the receiver actually got the POST.
+
+### Job queue & worker
+
+Source: `apps/api/src/jobs/` (producer), `apps/worker` (consumer),
+`packages/shared/src/constants/jobs.ts` (the queue/job-name contract
+between them).
+
+Redis-backed BullMQ. Two queues: `maintenance` (a daily repeatable
+`cleanup-expired-sessions` job, scheduled once at API boot, deletes
+sessions expired/revoked more than 30 days ago) and `webhooks`
+(on-demand `deliver-webhook` jobs from the plugin bridge, 3 attempts
+with exponential backoff — third-party endpoints are unreliable by
+nature). `apps/worker` is a separate NestJS process with no HTTP
+surface — `NestFactory.createApplicationContext`, not `.listen()` —
+sharing `@omniflow/database`/`@omniflow/shared` but otherwise fully
+independently deployable and scalable from the API. See
+`apps/worker/README.md`.
+
+### Security middleware
+
+`main.ts`: `helmet()` (default policy), `compression()`, CORS restricted
+to `CORS_ORIGIN` (comma-separated origins; unset falls back to allow-all
+for local dev only — always set it in production), a global
+`ValidationPipe` (`whitelist` + `forbidNonWhitelisted`, rejecting any
+request body field not declared on the DTO), and a `GlobalExceptionFilter`
+that centralizes 5xx logging and guarantees a generic message for any
+error that isn't a deliberately-thrown `HttpException` — while
+deliberately preserving Nest's default REST error shape
+(`{ statusCode, message, error }`) rather than introducing a new
+envelope, since the web app's error handling and every e2e test already
+depend on it.

@@ -6,9 +6,11 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import * as bcrypt from "bcryptjs";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import type { PaginatedResult } from "@omniflow/shared";
 import type { UserStatus } from "@omniflow/database";
 import { PrismaService } from "../../prisma/prisma.service";
+import { DomainEvents } from "../../common/events/domain-events";
 import type { AssignBranchDto } from "./dto/assign-branch.dto";
 import type { CreateUserDto } from "./dto/create-user.dto";
 import type { GrantRoleDto } from "./dto/grant-role.dto";
@@ -24,7 +26,10 @@ const userListInclude = {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: EventEmitter2,
+  ) {}
 
   async list(companyId: string, query: ListUsersQueryDto): Promise<PaginatedResult<unknown>> {
     const page = query.page ?? 1;
@@ -117,6 +122,13 @@ export class UsersService {
       }
 
       return tx.user.findUniqueOrThrow({ where: { id: user.id }, include: userListInclude });
+    }).then((user) => {
+      this.events.emit(DomainEvents.USER_CREATED, {
+        userId: user.id,
+        companyId: user.companyId,
+        email: user.email,
+      });
+      return user;
     });
   }
 
@@ -186,7 +198,10 @@ export class UsersService {
 
   async grantRole(companyId: string, userId: string, dto: GrantRoleDto) {
     await this.findOne(companyId, userId);
-    await this.assertRolesBelongToCompany(companyId, [dto.roleId]);
+    const role = await this.prisma.role.findFirst({ where: { id: dto.roleId, companyId } });
+    if (!role) {
+      throw new BadRequestException("One or more roles do not belong to this company");
+    }
     if (dto.branchId) {
       await this.assertBranchesBelongToCompany(companyId, [dto.branchId]);
     }
@@ -198,9 +213,13 @@ export class UsersService {
       return existing;
     }
 
-    return this.prisma.userRole.create({
+    const grant = await this.prisma.userRole.create({
       data: { userId, roleId: dto.roleId, branchId: dto.branchId ?? null },
     });
+
+    this.events.emit(DomainEvents.ROLE_GRANTED, { userId, companyId, roleName: role.name });
+
+    return grant;
   }
 
   async revokeRole(companyId: string, userId: string, userRoleId: string): Promise<void> {

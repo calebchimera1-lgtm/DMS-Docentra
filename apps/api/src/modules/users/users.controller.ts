@@ -13,6 +13,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { PERMISSIONS } from "@omniflow/shared";
 import { AuthorizationService } from "../../common/authorization/authorization.service";
+import { AuditEntity } from "../../common/decorators/audit-entity.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { RequirePermissions } from "../../common/decorators/require-permissions.decorator";
 import type { RequestUser } from "../auth/interfaces/jwt-payload.interface";
@@ -26,6 +27,7 @@ import { UsersService } from "./users.service";
 @ApiTags("users")
 @ApiBearerAuth()
 @Controller("users")
+@AuditEntity("User")
 export class UsersController {
   constructor(
     private readonly usersService: UsersService,

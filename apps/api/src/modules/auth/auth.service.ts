@@ -7,12 +7,14 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { JwtService } from "@nestjs/jwt";
 import { authenticator } from "otplib";
 import * as QRCode from "qrcode";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CryptoService } from "../../common/crypto/crypto.service";
+import { DomainEvents } from "../../common/events/domain-events";
 import type { RegisterDto } from "./dto/register.dto";
 import type { LoginDto } from "./dto/login.dto";
 import type { VerifyMfaLoginDto } from "./dto/verify-mfa-login.dto";
@@ -45,6 +47,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly crypto: CryptoService,
+    private readonly events: EventEmitter2,
   ) {}
 
   async register(dto: RegisterDto, context: RequestContext): Promise<TokenPair> {
@@ -118,6 +121,7 @@ export class AuthService {
     });
 
     await this.recordAuditLog(companyId, user.id, "CREATE", "Company", companyId, context);
+    this.events.emit(DomainEvents.USER_CREATED, { userId: user.id, companyId, email: user.email });
 
     return this.issueSession(user.id, companyId, user.email, context);
   }

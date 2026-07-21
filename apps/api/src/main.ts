@@ -1,15 +1,28 @@
 import "dotenv/config";
 import "reflect-metadata";
+import compression from "compression";
 import helmet from "helmet";
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
+import { GlobalExceptionFilter } from "./common/filters/http-exception.filter";
+
+function resolveCorsOrigins(): boolean | string[] {
+  const raw = process.env.CORS_ORIGIN;
+  if (!raw) {
+    // No origin configured — fine for local dev, but every production
+    // deployment should set CORS_ORIGIN explicitly (see .env.example).
+    return true;
+  }
+  return raw.split(",").map((origin) => origin.trim());
+}
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { cors: true });
+  const app = await NestFactory.create(AppModule, { cors: { origin: resolveCorsOrigins(), credentials: true } });
 
   app.use(helmet());
+  app.use(compression());
   app.setGlobalPrefix("api/v1");
   app.useGlobalPipes(
     new ValidationPipe({
@@ -18,6 +31,7 @@ async function bootstrap(): Promise<void> {
       transform: true,
     }),
   );
+  app.useGlobalFilters(new GlobalExceptionFilter());
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle("Omniflow API")

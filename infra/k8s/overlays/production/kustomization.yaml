@@ -3,6 +3,6 @@ kind: Kustomization
 namespace: omniflow
 resources:
   - ../../base
-
-# Production-specific patches (replica counts, resource limits, ingress
-# host/TLS, HPA thresholds) land alongside the CI/CD pipeline in Milestone 6.
+patches:
+  - path: replica-patch.yaml
+  - path: ingress-tls-patch.yaml

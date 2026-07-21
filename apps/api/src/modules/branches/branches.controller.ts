@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { PERMISSIONS } from "@omniflow/shared";
+import { AuditEntity } from "../../common/decorators/audit-entity.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { RequirePermissions } from "../../common/decorators/require-permissions.decorator";
 import type { RequestUser } from "../auth/interfaces/jwt-payload.interface";
@@ -12,6 +13,7 @@ import { UpdateBranchDto } from "./dto/update-branch.dto";
 @ApiBearerAuth()
 @Controller("branches")
 @RequirePermissions(PERMISSIONS.BRANCHES_MANAGE)
+@AuditEntity("Branch")
 export class BranchesController {
   constructor(private readonly branchesService: BranchesService) {}
 
