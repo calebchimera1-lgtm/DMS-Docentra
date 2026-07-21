@@ -54,9 +54,11 @@ Built and reviewed one at a time, in this order:
 
 - [x] **1. Folder structure & tooling** — monorepo layout, bootable Next.js
       + NestJS skeletons, Docker Compose for local infra, CI pipeline.
-- [ ] **2. Database schema** — fully normalized PostgreSQL schema
+- [x] **2. Database schema** — fully normalized PostgreSQL schema
       (multi-company/branch, users, RBAC, audit logs, sessions,
-      notifications, files), migrations, indexes, seed data.
+      notifications, files/attachments, comments), migrations, indexes,
+      views, triggers, a stored procedure, and seed data. See
+      [docs/database](docs/database/README.md).
 - [ ] **3. Authentication** — JWT access/refresh tokens, TOTP 2FA, session
       management, password policy, rate limiting, OAuth.
 - [ ] **4. User management & RBAC** — user CRUD, role/permission matrix,
@@ -83,15 +85,22 @@ docker compose up postgres redis elasticsearch minio -d
 # 3. Configure env
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
+cp packages/database/.env.example packages/database/.env
 
-# 4. Run the apps
+# 4. Apply migrations and seed demo data
+pnpm db:migrate
+pnpm db:seed
+
+# 5. Run the apps
 pnpm dev
 ```
 
 - API: http://localhost:4000/api/v1 (Swagger docs at `/api/docs`)
 - Web: http://localhost:3000
 
-The database schema (and therefore `pnpm db:migrate`) lands in Milestone 2.
+Seeded demo login: company slug `omniflow-demo`, email
+`admin@omniflow-demo.com`, password `Admin@12345` (login itself lands in
+Milestone 3 — Authentication).
 
 ## Running with Docker Compose
 

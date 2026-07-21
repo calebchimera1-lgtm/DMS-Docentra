@@ -40,8 +40,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Apply database migrations
+        run: pnpm --filter @omniflow/database exec prisma migrate deploy
+
       - name: Generate Prisma client
         run: pnpm --filter @omniflow/database generate
+
+      - name: Seed database
+        run: pnpm db:seed
 
       - name: Lint
         run: pnpm lint

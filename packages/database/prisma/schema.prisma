@@ -1,9 +1,22 @@
-// Omniflow database schema.
+// Omniflow database schema — Milestone 2 (core platform layer).
 //
-// This file intentionally only declares the datasource/generator for now.
-// The full normalized multi-tenant schema (companies, branches, users,
-// RBAC, audit logs, sessions, notifications, files, and per-module
-// entities) is designed and added in Milestone 2 — Database schema.
+// Scope: the tenancy, identity, RBAC, and cross-cutting tables every
+// business module (CRM, Sales, Inventory, ...) builds on top of, added
+// one module at a time from Milestone 7 onward. Each of those modules
+// gets its own models in this file plus a migration when it lands —
+// none are pre-declared here to avoid guessing at their shape ahead of
+// time.
+//
+// Conventions:
+//  - Primary keys are UUIDs, generated application-side by Prisma.
+//  - Every tenant-scoped table carries companyId and cascades on
+//    Company delete; "actor" references (who did this) are nullable
+//    and SET NULL on delete so history survives account deletion.
+//  - Table/column names are snake_case in Postgres via @@map/@map;
+//    Prisma-side fields stay camelCase.
+//  - Polymorphic cross-cutting tables (attachments, comments, audit
+//    logs) reference their target via (entityType, entityId) rather
+//    than a foreign key, since the target can be any module's table.
 
 generator client {
   provider = "prisma-client-js"
@@ -11,6 +24,444 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum CompanyStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum BranchStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGIN_FAILED
+  LOGOUT
+  PASSWORD_RESET
+  PERMISSION_CHANGE
+  EXPORT
+  OTHER
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+  MENTION
+  APPROVAL_REQUEST
+  SYSTEM
+}
+
+enum StorageProvider {
+  LOCAL
+  S3
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy
+// ---------------------------------------------------------------------------
+
+/// A tenant on the platform. Every other table (directly or transitively)
+/// is scoped to a Company.
+model Company {
+  id         String        @id @default(uuid())
+  name       String
+  slug       String        @unique
+  legalName  String?
+  taxId      String?
+  currency   String        @default("USD")
+  timezone   String        @default("UTC")
+  logoUrl    String?
+  status     CompanyStatus @default(TRIAL)
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+  deletedAt  DateTime?     @map("deleted_at")
+
+  branches      Branch[]
+  users         User[]
+  roles         Role[]
+  sessions      Session[]
+  auditLogs     AuditLog[]
+  notifications Notification[]
+  attachments   Attachment[]
+  comments      Comment[]
+  settings      Setting[]
+  plugins       CompanyPlugin[]
+
+  @@index([status])
+  @@map("companies")
+}
+
+/// A physical or logical location within a Company (multi-branch support).
+model Branch {
+  id              String       @id @default(uuid())
+  companyId       String       @map("company_id")
+  name            String
+  code            String
+  isHeadquarters  Boolean      @default(false) @map("is_headquarters")
+  status          BranchStatus @default(ACTIVE)
+  addressLine1    String?      @map("address_line1")
+  addressLine2    String?      @map("address_line2")
+  city            String?
+  state           String?
+  country         String?
+  postalCode      String?      @map("postal_code")
+  phone           String?
+  email           String?
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  deletedAt       DateTime?    @map("deleted_at")
+
+  company   Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  users     UserBranch[]
+  userRoles UserRole[]
+
+  @@unique([companyId, code])
+  @@index([companyId, status])
+  @@map("branches")
+}
+
+// ---------------------------------------------------------------------------
+// Identity & auth
+// ---------------------------------------------------------------------------
+
+/// A platform user. Belongs to exactly one Company; access to specific
+/// branches is granted via UserBranch, and permissions via UserRole.
+model User {
+  id                   String     @id @default(uuid())
+  companyId            String     @map("company_id")
+  email                String     @unique
+  passwordHash         String     @map("password_hash")
+  firstName            String     @map("first_name")
+  lastName             String     @map("last_name")
+  phone                String?
+  avatarUrl            String?    @map("avatar_url")
+  status               UserStatus @default(PENDING_VERIFICATION)
+  emailVerifiedAt      DateTime?  @map("email_verified_at")
+  mfaEnabled           Boolean    @default(false) @map("mfa_enabled")
+  mfaSecret            String?    @map("mfa_secret")
+  failedLoginAttempts  Int        @default(0) @map("failed_login_attempts")
+  lockedUntil          DateTime?  @map("locked_until")
+  passwordChangedAt    DateTime?  @map("password_changed_at")
+  lastLoginAt          DateTime?  @map("last_login_at")
+  lastLoginIp          String?    @map("last_login_ip")
+  createdAt            DateTime   @default(now()) @map("created_at")
+  updatedAt            DateTime   @updatedAt @map("updated_at")
+  deletedAt            DateTime?  @map("deleted_at")
+
+  company              Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branches             UserBranch[]
+  roles                UserRole[]
+  sessions             Session[]
+  mfaBackupCodes       MfaBackupCode[]
+  passwordResetTokens  PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  notifications        Notification[]
+
+  @@index([companyId, status])
+  @@map("users")
+}
+
+/// Which branches a user can operate in (multi-branch access grant).
+model UserBranch {
+  userId    String   @map("user_id")
+  branchId  String   @map("branch_id")
+  isPrimary Boolean  @default(false) @map("is_primary")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@id([userId, branchId])
+  @@index([branchId])
+  @@map("user_branches")
+}
+
+/// A named collection of permissions, either a system-provided template
+/// (companyId null) or a company-specific custom role.
+model Role {
+  id          String   @id @default(uuid())
+  companyId   String?  @map("company_id")
+  name        String
+  description String?
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company     Company?         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@unique([companyId, name])
+  @@map("roles")
+}
+
+/// The global catalog of assignable permissions (seeded, not user-created).
+model Permission {
+  id          String @id @default(uuid())
+  key         String @unique
+  module      String
+  action      String
+  description String?
+
+  roles RolePermission[]
+
+  @@index([module])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+/// A role granted to a user, optionally scoped to a single branch
+/// (null branchId = applies company-wide). branchId is nullable, so this
+/// uses a surrogate key rather than a composite one (Postgres unique
+/// constraints treat NULLs as distinct — the service layer is
+/// responsible for rejecting duplicate company-wide grants).
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  roleId    String   @map("role_id")
+  branchId  String?  @map("branch_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId, branchId])
+  @@index([roleId])
+  @@index([branchId])
+  @@map("user_roles")
+}
+
+/// A refresh-token-backed login session / device (session management).
+model Session {
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id")
+  companyId         String    @map("company_id")
+  refreshTokenHash  String    @unique @map("refresh_token_hash")
+  deviceLabel       String?   @map("device_label")
+  userAgent         String?   @map("user_agent")
+  ipAddress         String?   @map("ip_address")
+  revokedAt         DateTime? @map("revoked_at")
+  expiresAt         DateTime  @map("expires_at")
+  lastUsedAt        DateTime  @default(now()) @map("last_used_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+/// One-time-use TOTP MFA recovery code.
+model MfaBackupCode {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  codeHash  String    @map("code_hash")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("mfa_backup_codes")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Cross-cutting: audit, notifications, files, comments, settings, plugins
+// ---------------------------------------------------------------------------
+
+/// Append-only audit trail. entityType/entityId point at the affected
+/// record in any module's table (e.g. entityType="Invoice").
+model AuditLog {
+  id         String      @id @default(uuid())
+  companyId  String      @map("company_id")
+  actorId    String?     @map("actor_id")
+  action     AuditAction
+  entityType String      @map("entity_type")
+  entityId   String?     @map("entity_id")
+  changes    Json?
+  ipAddress  String?     @map("ip_address")
+  userAgent  String?     @map("user_agent")
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, entityType, entityId])
+  @@index([companyId, createdAt])
+  @@index([actorId])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  companyId String           @map("company_id")
+  userId    String           @map("user_id")
+  type      NotificationType @default(INFO)
+  title     String
+  body      String?
+  data      Json?
+  readAt    DateTime?        @map("read_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([companyId, createdAt])
+  @@map("notifications")
+}
+
+/// A file attached to any module's record, addressed polymorphically via
+/// (entityType, entityId). Storage location is an S3-compatible key
+/// (works for both MinIO locally and AWS S3 in production).
+model Attachment {
+  id               String          @id @default(uuid())
+  companyId        String          @map("company_id")
+  uploadedById     String?         @map("uploaded_by_id")
+  entityType       String          @map("entity_type")
+  entityId         String          @map("entity_id")
+  fileName         String          @map("file_name")
+  originalName     String          @map("original_name")
+  mimeType         String          @map("mime_type")
+  sizeBytes        BigInt          @map("size_bytes")
+  storageProvider  StorageProvider @default(S3) @map("storage_provider")
+  storageKey       String          @map("storage_key")
+  checksum         String?
+  createdAt        DateTime        @default(now()) @map("created_at")
+  deletedAt        DateTime?       @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, entityType, entityId])
+  @@map("attachments")
+}
+
+/// A comment on any module's record, addressed polymorphically via
+/// (entityType, entityId).
+model Comment {
+  id         String    @id @default(uuid())
+  companyId  String    @map("company_id")
+  authorId   String?   @map("author_id")
+  entityType String    @map("entity_type")
+  entityId   String    @map("entity_id")
+  body       String
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, entityType, entityId])
+  @@map("comments")
+}
+
+/// Company-scoped key/value settings (per-module or platform-wide).
+model Setting {
+  id        String   @id @default(uuid())
+  companyId String   @map("company_id")
+  key       String
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, key])
+  @@map("settings")
+}
+
+/// The catalog of installable plugins (plugin system).
+model Plugin {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  name        String
+  description String?
+  version     String
+  author      String?
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  companies CompanyPlugin[]
+
+  @@map("plugins")
+}
+
+/// Per-company plugin install/enable state and configuration.
+model CompanyPlugin {
+  companyId   String   @map("company_id")
+  pluginId    String   @map("plugin_id")
+  isEnabled   Boolean  @default(true) @map("is_enabled")
+  config      Json?
+  installedAt DateTime @default(now()) @map("installed_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plugin  Plugin  @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, pluginId])
+  @@index([pluginId])
+  @@map("company_plugins")
 }
