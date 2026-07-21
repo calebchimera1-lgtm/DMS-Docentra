@@ -1,0 +1,26 @@
+{
+  "name": "@omniflow/database",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "seed": "ts-node --transpile-only prisma/seed.ts",
+    "studio": "prisma studio",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.1.0"
+  },
+  "devDependencies": {
+    "@omniflow/config": "workspace:*",
+    "@types/node": "^22.10.2",
+    "prisma": "^6.1.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2"
+  }
+}

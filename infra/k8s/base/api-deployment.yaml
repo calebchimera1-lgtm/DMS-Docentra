@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: omniflow-api
+  labels:
+    app: omniflow-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: omniflow-api
+  template:
+    metadata:
+      labels:
+        app: omniflow-api
+    spec:
+      containers:
+        - name: api
+          image: omniflow-api:latest
+          ports:
+            - containerPort: 4000
+          envFrom:
+            - secretRef:
+                name: omniflow-api-secrets
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 4000
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 4000
+            initialDelaySeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: omniflow-api
+spec:
+  selector:
+    app: omniflow-api
+  ports:
+    - port: 4000
+      targetPort: 4000

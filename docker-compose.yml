@@ -1,104 +1,83 @@
-name: docentra
-
 services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-docentra}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-docentra}
-      POSTGRES_DB: ${POSTGRES_DB:-docentra}
-    volumes:
-      - pg-data:/var/lib/postgresql/data
+      POSTGRES_USER: omniflow
+      POSTGRES_PASSWORD: omniflow
+      POSTGRES_DB: omniflow
     ports:
       - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-docentra}"]
+      test: ["CMD-SHELL", "pg_isready -U omniflow"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
 
   minio:
     image: minio/minio:latest
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-docentra}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-minio-secret}
-    volumes:
-      - minio-data:/data
+      MINIO_ROOT_USER: omniflow
+      MINIO_ROOT_PASSWORD: change-me
     ports:
       - "9000:9000"
       - "9001:9001"
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+    volumes:
+      - minio-data:/data
 
-  minio-createbucket:
-    image: minio/mc:latest
-    depends_on:
-      minio:
-        condition: service_healthy
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-docentra} ${MINIO_ROOT_PASSWORD:-change-me-minio-secret};
-      mc mb -p local/${S3_BUCKET:-docentra-documents};
-      exit 0;
-      "
-
-  backend:
+  api:
     build:
-      context: ./backend
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
-      minio-createbucket:
-        condition: service_completed_successfully
-    environment:
-      NODE_ENV: production
-      PORT: 4000
-      APP_URL: ${APP_URL:-http://localhost:4000}
-      WEB_URL: ${WEB_URL:-http://localhost:8080}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-docentra}:${POSTGRES_PASSWORD:-docentra}@postgres:5432/${POSTGRES_DB:-docentra}
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?Set JWT_ACCESS_SECRET in .env}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET in .env}
-      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
-      LOCAL_STORAGE_PATH: uploads
-      S3_BUCKET: ${S3_BUCKET:-docentra-documents}
-      S3_REGION: ${S3_REGION:-us-east-1}
-      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
-      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-docentra}
-      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-change-me-minio-secret}
-      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASS: ${SMTP_PASS:-}
-      SMTP_FROM: ${SMTP_FROM:-Docentra <no-reply@docentra.local>}
-    volumes:
-      - backend-uploads:/app/uploads
-      - backend-logs:/app/logs
+      redis:
+        condition: service_started
+    env_file:
+      - apps/api/.env
     ports:
       - "4000:4000"
 
   web:
     build:
-      context: ./web
-      args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
-        VITE_SOCKET_URL: ${VITE_SOCKET_URL:-/}
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
     restart: unless-stopped
     depends_on:
-      - backend
+      - api
+    env_file:
+      - apps/web/.env
     ports:
-      - "8080:80"
+      - "3000:3000"
 
 volumes:
-  pg-data:
+  postgres-data:
+  redis-data:
+  elasticsearch-data:
   minio-data:
-  backend-uploads:
-  backend-logs:

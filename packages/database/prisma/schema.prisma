@@ -1,0 +1,16 @@
+// Omniflow database schema.
+//
+// This file intentionally only declares the datasource/generator for now.
+// The full normalized multi-tenant schema (companies, branches, users,
+// RBAC, audit logs, sessions, notifications, files, and per-module
+// entities) is designed and added in Milestone 2 — Database schema.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}

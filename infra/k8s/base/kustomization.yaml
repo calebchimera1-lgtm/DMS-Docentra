@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: omniflow
+resources:
+  - namespace.yaml
+  - api-deployment.yaml
+  - web-deployment.yaml
+
+# Full manifests (HPA, ConfigMaps, Secrets, Ingress, per-service resource
+# limits) are fleshed out once the API/web images are built and pushed in
+# CI — see Milestone 6 (Core framework) and the CI/CD workflow.
