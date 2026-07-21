@@ -63,8 +63,10 @@ Built and reviewed one at a time, in this order:
       refresh), TOTP 2FA with backup codes, session/device management,
       password policy + account lockout, rate limiting, an optional
       Google OAuth flow. See [docs/api](docs/api/README.md#authentication).
-- [ ] **4. User management & RBAC** — user CRUD, role/permission matrix,
-      company/branch scoping, guards.
+- [x] **4. User management & RBAC** — user CRUD, custom roles with a
+      permission matrix, branch CRUD + user/branch/role assignment, a
+      global `PermissionsGuard` enforcing it all, strict tenant
+      isolation. See [docs/api](docs/api/README.md#user-management--rbac).
 - [ ] **5. Dashboard** — sidebar/topbar shell, widgets, dark/light theme.
 - [ ] **6. Core framework** — GraphQL, Swagger, audit logging,
       notifications, realtime (Socket.IO), plugin system, file storage,

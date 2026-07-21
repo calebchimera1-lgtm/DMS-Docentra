@@ -96,6 +96,61 @@ brute-force attempts.
 "Headquarters" branch, a company-scoped "Super Admin" role granted every
 seeded permission, and the requesting user — assigned that role
 company-wide and that branch as primary — all in one transaction, then
-logs the user in immediately. There's intentionally no separate
-"add a user to an existing company" endpoint yet; that's part of
-Milestone 4 (User management & RBAC).
+logs the user in immediately. Adding further users to that company is
+`POST /users` (see below).
+
+## User management & RBAC
+
+Source: `apps/api/src/modules/{users,roles,permissions,branches}/`,
+`apps/api/src/common/{authorization,guards,decorators}/`.
+
+### Permission model
+
+- **Permission** is a global, seeded catalog of `module:action` keys
+  (`packages/shared/src/constants/permissions.ts` is the single source
+  of truth — both the Prisma seed script and a `PermissionsService`
+  `OnModuleInit` hook upsert from it, so RBAC works whether or not
+  `pnpm db:seed` was ever run).
+- **Role** is company-scoped (custom roles created via `POST /roles`) or
+  a company-scoped **system** role (`isSystem: true` — currently just
+  "Super Admin", created at registration; system roles can't be renamed,
+  have their permissions changed, or be deleted).
+- **UserRole** grants a role to a user, either company-wide (`branchId`
+  null) or scoped to one branch. A user's *effective permissions* are
+  the union of every permission on every role they hold
+  (`AuthorizationService.getEffectivePermissions`) — row-level
+  enforcement of "only within that branch" is a further refinement left
+  for later; today a granted permission applies wherever the user
+  operates.
+- **UserBranch** grants a user access to a branch (multi-branch support),
+  independent of role scoping.
+
+### Enforcement
+
+`@RequirePermissions(...keys)` sets route metadata; the global
+`PermissionsGuard` (an `APP_GUARD`, running after `JwtAuthGuard`) reads
+it and 403s if the current user's effective permissions don't cover
+every required key. Routes with no `@RequirePermissions` are open to any
+authenticated user (e.g. `GET /users/me`). Permissions are recomputed
+from the database on every request rather than cached in the JWT, so
+revoking a permission (or deleting the granting role) takes effect on
+a user's *existing* access token immediately, not just after their next
+login — verified in `test/rbac.e2e-spec.ts`.
+
+### Multi-tenancy
+
+Every service method takes the caller's `companyId` (from the JWT, never
+from the request body/params) and scopes every query to it; looking up
+another tenant's record by ID returns 404 rather than 403, so tenant
+existence isn't leaked. Creating a user/role/branch validates that any
+referenced IDs (branches, roles) belong to the same company.
+
+### Guard rails
+
+Beyond permission checks: users can't delete their own account; a role
+can't be deleted while any user still holds it (must be revoked first);
+a branch can't be deleted while it has assigned users, and the
+headquarters branch can never be deleted; deactivating a user
+(`PATCH /users/:id` with a non-`ACTIVE` status, or `DELETE /users/:id`)
+revokes all of their sessions immediately, the same way a password reset
+does.

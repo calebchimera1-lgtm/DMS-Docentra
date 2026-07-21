@@ -1,5 +1,5 @@
 import { PrismaClient } from "../generated/client";
-import { PERMISSIONS } from "@omniflow/shared";
+import { PERMISSION_CATALOG, PERMISSIONS } from "@omniflow/shared";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -8,36 +8,18 @@ const DEMO_COMPANY_SLUG = "omniflow-demo";
 const DEMO_ADMIN_EMAIL = "admin@omniflow-demo.com";
 const DEMO_ADMIN_PASSWORD = "Admin@12345";
 
-/** module:action -> human description, used to seed the permission catalog. */
-const PERMISSION_DESCRIPTIONS: Record<string, string> = {
-  [PERMISSIONS.USERS_READ]: "View users",
-  [PERMISSIONS.USERS_WRITE]: "Create and edit users",
-  [PERMISSIONS.USERS_DELETE]: "Delete or deactivate users",
-  [PERMISSIONS.ROLES_MANAGE]: "Manage roles and permission assignments",
-  [PERMISSIONS.COMPANIES_MANAGE]: "Manage company profile and lifecycle",
-  [PERMISSIONS.BRANCHES_MANAGE]: "Manage branches",
-  [PERMISSIONS.AUDIT_LOGS_READ]: "View audit logs",
-  [PERMISSIONS.SETTINGS_MANAGE]: "Manage company settings",
-};
-
 async function seedPermissionCatalog() {
-  const permissions = Object.values(PERMISSIONS);
-
-  for (const key of permissions) {
-    const [module, action] = key.split(":") as [string, string];
+  for (const definition of PERMISSION_CATALOG) {
     await prisma.permission.upsert({
-      where: { key },
-      update: {},
-      create: {
-        key,
-        module,
-        action,
-        description: PERMISSION_DESCRIPTIONS[key],
-      },
+      where: { key: definition.key },
+      update: { module: definition.module, action: definition.action, description: definition.description },
+      create: definition,
     });
   }
 
-  return prisma.permission.findMany({ where: { key: { in: permissions } } });
+  return prisma.permission.findMany({
+    where: { key: { in: PERMISSION_CATALOG.map((p) => p.key) } },
+  });
 }
 
 async function main(): Promise<void> {
