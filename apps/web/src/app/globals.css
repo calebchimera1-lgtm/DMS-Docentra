@@ -12,6 +12,10 @@
     --muted-foreground: 215 16% 47%;
     --border: 214 32% 91%;
     --radius: 0.5rem;
+
+    /* Data visualization — see dataviz skill's reference palette. */
+    --chart-series-1: #2a78d6;
+    --chart-gridline: #e1e0d9;
   }
 
   .dark {
@@ -22,6 +26,9 @@
     --muted: 217 33% 17%;
     --muted-foreground: 215 20% 65%;
     --border: 217 33% 20%;
+
+    --chart-series-1: #3987e5;
+    --chart-gridline: #2c2c2a;
   }
 
   * {

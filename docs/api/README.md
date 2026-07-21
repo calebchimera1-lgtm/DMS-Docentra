@@ -154,3 +154,19 @@ headquarters branch can never be deleted; deactivating a user
 (`PATCH /users/:id` with a non-`ACTIVE` status, or `DELETE /users/:id`)
 revokes all of their sessions immediately, the same way a password reset
 does.
+
+## Dashboard
+
+Source: `apps/api/src/modules/dashboard/`.
+
+- `GET /dashboard/summary` — headline counts (active/total users,
+  branches, unread notifications) for the caller's company. Open to any
+  authenticated user (no `@RequirePermissions`) since it's read-only,
+  company-scoped, and not sensitive. Backed by the `company_dashboard_stats`
+  view from Milestone 2 via `$queryRaw` rather than re-deriving the same
+  aggregation with Prisma's query builder — the view is the single source
+  of truth for these counts, shared with any future BI/reporting use.
+- `GET /dashboard/activity-by-action` and `GET /dashboard/recent-activity`
+  — audit log activity, grouped by action or as a raw recent feed. Gated
+  behind `audit_logs:read`, so a low-privilege user simply doesn't see
+  those cards (the web app hides them on a 403 rather than erroring).

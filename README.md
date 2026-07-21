@@ -67,7 +67,11 @@ Built and reviewed one at a time, in this order:
       permission matrix, branch CRUD + user/branch/role assignment, a
       global `PermissionsGuard` enforcing it all, strict tenant
       isolation. See [docs/api](docs/api/README.md#user-management--rbac).
-- [ ] **5. Dashboard** — sidebar/topbar shell, widgets, dark/light theme.
+- [x] **5. Dashboard** — a real, working web app: login (with MFA), a
+      responsive sidebar/topbar shell (mobile drawer nav), dark/light
+      theme, and a dashboard home with live stat tiles, an activity
+      chart, and a recent-activity feed pulled from the API. See
+      [docs/architecture](docs/architecture/README.md#frontend-appsweb-added-in-milestone-5).
 - [ ] **6. Core framework** — GraphQL, Swagger, audit logging,
       notifications, realtime (Socket.IO), plugin system, file storage,
       job queue/worker, security middleware, Kubernetes manifests.
@@ -100,11 +104,12 @@ pnpm dev
 ```
 
 - API: http://localhost:4000/api/v1 (Swagger docs at `/api/docs`)
-- Web: http://localhost:3000
+- Web: http://localhost:3000 — sign in at `/login` and land on the dashboard
 
 Seeded demo login: company slug `omniflow-demo`, email
 `admin@omniflow-demo.com`, password `Admin@12345` — or register your own
-company via `POST /auth/login` / `POST /auth/register` (see
+company from the API directly via `POST /auth/register` (there's no
+sign-up page in the web app yet; see
 [docs/api](docs/api/README.md#authentication)).
 
 ## Running with Docker Compose

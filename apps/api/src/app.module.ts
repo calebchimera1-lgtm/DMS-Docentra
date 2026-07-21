@@ -8,6 +8,7 @@ import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { PermissionsGuard } from "./common/guards/permissions.guard";
 import { AuthModule } from "./modules/auth/auth.module";
 import { BranchesModule } from "./modules/branches/branches.module";
+import { DashboardModule } from "./modules/dashboard/dashboard.module";
 import { HealthModule } from "./modules/health/health.module";
 import { PermissionsModule } from "./modules/permissions/permissions.module";
 import { RolesModule } from "./modules/roles/roles.module";
@@ -31,6 +32,7 @@ import { PrismaModule } from "./prisma/prisma.module";
     UsersModule,
     RolesModule,
     BranchesModule,
+    DashboardModule,
     HealthModule,
     // Business modules (CRM, Sales, Inventory, ...) are added one at a
     // time starting in Milestone 7 — see docs/architecture.
