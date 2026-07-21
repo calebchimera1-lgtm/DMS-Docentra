@@ -59,8 +59,10 @@ Built and reviewed one at a time, in this order:
       notifications, files/attachments, comments), migrations, indexes,
       views, triggers, a stored procedure, and seed data. See
       [docs/database](docs/database/README.md).
-- [ ] **3. Authentication** — JWT access/refresh tokens, TOTP 2FA, session
-      management, password policy, rate limiting, OAuth.
+- [x] **3. Authentication** — JWT access/refresh tokens (rotation on
+      refresh), TOTP 2FA with backup codes, session/device management,
+      password policy + account lockout, rate limiting, an optional
+      Google OAuth flow. See [docs/api](docs/api/README.md#authentication).
 - [ ] **4. User management & RBAC** — user CRUD, role/permission matrix,
       company/branch scoping, guards.
 - [ ] **5. Dashboard** — sidebar/topbar shell, widgets, dark/light theme.
@@ -99,8 +101,9 @@ pnpm dev
 - Web: http://localhost:3000
 
 Seeded demo login: company slug `omniflow-demo`, email
-`admin@omniflow-demo.com`, password `Admin@12345` (login itself lands in
-Milestone 3 — Authentication).
+`admin@omniflow-demo.com`, password `Admin@12345` — or register your own
+company via `POST /auth/login` / `POST /auth/register` (see
+[docs/api](docs/api/README.md#authentication)).
 
 ## Running with Docker Compose
 

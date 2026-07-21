@@ -25,6 +25,13 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://omniflow:omniflow@localhost:5432/omniflow_test?schema=public
+      NODE_ENV: test
+      JWT_ACCESS_SECRET: ci-access-secret
+      JWT_REFRESH_SECRET: ci-refresh-secret
+      JWT_MFA_SECRET: ci-mfa-secret
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      ENCRYPTION_KEY: ci-encryption-key
     steps:
       - uses: actions/checkout@v4
 
@@ -60,6 +67,9 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: End-to-end tests
+        run: pnpm test:e2e
 
   docker-build:
     runs-on: ubuntu-latest

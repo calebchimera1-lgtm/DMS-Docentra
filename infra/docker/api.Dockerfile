@@ -14,6 +14,7 @@ RUN pnpm install --frozen-lockfile
 FROM deps AS build
 COPY . .
 RUN pnpm --filter @omniflow/database generate
+RUN pnpm --filter @omniflow/shared build
 RUN pnpm --filter @omniflow/api build
 
 FROM base AS runtime
