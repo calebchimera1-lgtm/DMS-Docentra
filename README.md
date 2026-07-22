@@ -83,6 +83,13 @@ Built and reviewed one at a time, in this order:
       and [docs/deployment](docs/deployment/README.md).
 - [ ] **7+. Business modules** — CRM, Sales, Inventory, Accounting, HR,
       Projects, and the rest, added one at a time.
+      - [x] **CRM** — accounts, contacts, leads (with lead → account/
+            contact conversion), and deals moving through a sales
+            pipeline. Full CRUD + GraphQL, search/filters, CSV export,
+            pipeline/funnel reports, RBAC, audit logging, and comments/
+            attachments on every record. See
+            [docs/api](docs/api/README.md#crm-milestone-7--first-business-module).
+      - [ ] Sales, Inventory, Accounting, HR, Projects, and the rest.
 
 ## Getting started (local development)
 

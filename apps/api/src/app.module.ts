@@ -16,6 +16,8 @@ import { StorageModule } from "./common/storage/storage.module";
 import { AttachmentsModule } from "./modules/attachments/attachments.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { BranchesModule } from "./modules/branches/branches.module";
+import { CommentsModule } from "./modules/comments/comments.module";
+import { CrmModule } from "./modules/crm/crm.module";
 import { DashboardModule } from "./modules/dashboard/dashboard.module";
 import { HealthModule } from "./modules/health/health.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
@@ -57,11 +59,13 @@ import { RealtimeModule } from "./realtime/realtime.module";
     DashboardModule,
     NotificationsModule,
     AttachmentsModule,
+    CommentsModule,
     PluginsModule,
     RealtimeModule,
     HealthModule,
     // Business modules (CRM, Sales, Inventory, ...) are added one at a
     // time starting in Milestone 7 — see docs/architecture.
+    CrmModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },

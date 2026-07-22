@@ -91,6 +91,22 @@ async function request<T>(path: string, options: RequestOptions = {}, isRetry = 
   return body as T;
 }
 
+async function uploadFile<T>(path: string, formData: FormData): Promise<T> {
+  const tokens = getStoredTokens();
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: tokens ? { Authorization: `Bearer ${tokens.accessToken}` } : {},
+    body: formData,
+  });
+
+  const body = await res.json();
+  if (!res.ok) {
+    const message = (body && typeof body === "object" && "message" in body ? body.message : null) ?? "Upload failed";
+    throw new ApiError(Array.isArray(message) ? message.join(", ") : message, res.status, body);
+  }
+  return body as T;
+}
+
 export const apiClient = {
   get: <T>(path: string, options?: Omit<RequestOptions, "method">) =>
     request<T>(path, { ...options, method: "GET" }),
@@ -100,4 +116,5 @@ export const apiClient = {
     request<T>(path, { ...options, method: "PATCH", body }),
   delete: <T>(path: string, options?: Omit<RequestOptions, "method">) =>
     request<T>(path, { ...options, method: "DELETE" }),
+  upload: uploadFile,
 };

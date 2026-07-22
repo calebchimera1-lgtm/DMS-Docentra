@@ -11,6 +11,9 @@ export const PERMISSIONS = {
   BRANCHES_MANAGE: "branches:manage",
   AUDIT_LOGS_READ: "audit_logs:read",
   SETTINGS_MANAGE: "settings:manage",
+  CRM_READ: "crm:read",
+  CRM_WRITE: "crm:write",
+  CRM_DELETE: "crm:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -73,5 +76,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "settings",
     action: "manage",
     description: "Manage company settings",
+  },
+  {
+    key: PERMISSIONS.CRM_READ,
+    module: "crm",
+    action: "read",
+    description: "View CRM accounts, contacts, leads, and deals",
+  },
+  {
+    key: PERMISSIONS.CRM_WRITE,
+    module: "crm",
+    action: "write",
+    description: "Create and edit CRM accounts, contacts, leads, and deals",
+  },
+  {
+    key: PERMISSIONS.CRM_DELETE,
+    module: "crm",
+    action: "delete",
+    description: "Delete CRM accounts, contacts, leads, and deals",
   },
 ];

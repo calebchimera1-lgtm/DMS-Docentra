@@ -80,6 +80,23 @@ enum StorageProvider {
   S3
 }
 
+enum CrmLeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  LOST
+}
+
+enum CrmDealStage {
+  PROSPECTING
+  QUALIFICATION
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
 // ---------------------------------------------------------------------------
 // Tenancy
 // ---------------------------------------------------------------------------
@@ -110,6 +127,10 @@ model Company {
   comments      Comment[]
   settings      Setting[]
   plugins       CompanyPlugin[]
+  crmAccounts   CrmAccount[]
+  crmContacts   CrmContact[]
+  crmLeads      CrmLead[]
+  crmDeals      CrmDeal[]
 
   @@index([status])
   @@map("companies")
@@ -180,6 +201,11 @@ model User {
   passwordResetTokens  PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
   notifications        Notification[]
+  ownedCrmAccounts      CrmAccount[]
+  ownedCrmContacts      CrmContact[]
+  ownedCrmLeads         CrmLead[]
+  ownedCrmDeals         CrmDeal[]
+  authoredComments      Comment[]
 
   @@index([companyId, status])
   @@map("users")
@@ -415,6 +441,7 @@ model Comment {
   deletedAt  DateTime? @map("deleted_at")
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  author  User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
 
   @@index([companyId, entityType, entityId])
   @@map("comments")
@@ -464,4 +491,105 @@ model CompanyPlugin {
   @@id([companyId, pluginId])
   @@index([pluginId])
   @@map("company_plugins")
+}
+
+// ---------------------------------------------------------------------------
+// CRM (Milestone 7 — first business module)
+// ---------------------------------------------------------------------------
+
+/// A customer or prospect organization.
+model CrmAccount {
+  id        String    @id @default(uuid())
+  companyId String    @map("company_id")
+  name      String
+  industry  String?
+  website   String?
+  phone     String?
+  ownerId   String?   @map("owner_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company  Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  owner    User?        @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  contacts CrmContact[]
+  deals    CrmDeal[]
+
+  @@index([companyId, deletedAt])
+  @@map("crm_accounts")
+}
+
+/// A person, optionally linked to an account.
+model CrmContact {
+  id        String    @id @default(uuid())
+  companyId String    @map("company_id")
+  accountId String?   @map("account_id")
+  firstName String    @map("first_name")
+  lastName  String    @map("last_name")
+  email     String?
+  phone     String?
+  title     String?
+  ownerId   String?   @map("owner_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  owner   User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  deals   CrmDeal[]
+
+  @@index([companyId, deletedAt])
+  @@index([accountId])
+  @@map("crm_contacts")
+}
+
+/// A prospective customer not yet qualified into an account/contact.
+model CrmLead {
+  id          String        @id @default(uuid())
+  companyId   String        @map("company_id")
+  firstName   String        @map("first_name")
+  lastName    String        @map("last_name")
+  email       String?
+  phone       String?
+  companyName String?       @map("company_name")
+  source      String?
+  status      CrmLeadStatus @default(NEW)
+  ownerId     String?       @map("owner_id")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  deletedAt   DateTime?     @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, deletedAt, status])
+  @@map("crm_leads")
+}
+
+/// A sales opportunity moving through a pipeline.
+model CrmDeal {
+  id                String       @id @default(uuid())
+  companyId         String       @map("company_id")
+  accountId         String?      @map("account_id")
+  contactId         String?      @map("contact_id")
+  title             String
+  valueCents        Int          @default(0) @map("value_cents")
+  currency          String       @default("USD")
+  stage             CrmDealStage @default(PROSPECTING)
+  expectedCloseDate DateTime?    @map("expected_close_date")
+  ownerId           String?      @map("owner_id")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+  deletedAt         DateTime?    @map("deleted_at")
+
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  contact CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  owner   User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, deletedAt, stage])
+  @@index([accountId])
+  @@index([contactId])
+  @@map("crm_deals")
 }

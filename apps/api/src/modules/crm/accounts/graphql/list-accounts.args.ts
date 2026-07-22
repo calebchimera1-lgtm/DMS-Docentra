@@ -1,9 +1,9 @@
 import { ArgsType, Field, Int, ObjectType } from "@nestjs/graphql";
 import { IsInt, IsOptional, IsString, Max, Min } from "class-validator";
-import { UserType } from "./user.type";
+import { CrmAccountType } from "./account.type";
 
 @ArgsType()
-export class ListUsersArgs {
+export class ListAccountsArgs {
   @Field(() => Int, { defaultValue: 1 })
   @IsInt()
   @Min(1)
@@ -22,9 +22,9 @@ export class ListUsersArgs {
 }
 
 @ObjectType()
-export class PaginatedUsers {
-  @Field(() => [UserType])
-  items!: UserType[];
+export class PaginatedCrmAccounts {
+  @Field(() => [CrmAccountType])
+  items!: CrmAccountType[];
 
   @Field(() => Int)
   total!: number;

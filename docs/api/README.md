@@ -310,3 +310,82 @@ deliberately preserving Nest's default REST error shape
 (`{ statusCode, message, error }`) rather than introducing a new
 envelope, since the web app's error handling and every e2e test already
 depend on it.
+
+## CRM (Milestone 7 — first business module)
+
+Source: `apps/api/src/modules/crm/` (`accounts/`, `contacts/`,
+`leads/`, `deals/`, `reports/`), `apps/api/src/modules/comments/`
+(new generic module, added alongside this milestone).
+
+The first of the ~50 planned business modules, and the template the
+rest follow: each entity gets REST CRUD + a parallel GraphQL query
+surface, search/filter/pagination, CSV export, RBAC, audit logging
+(automatic via `@AuditEntity`), and the two generic cross-cutting
+features built in Milestone 6 — comments and attachments — wired in via
+`entityType`/`entityId` rather than bespoke per-module code.
+
+### Entities
+
+- **Accounts** (`crm_accounts`) — customer/prospect organizations.
+- **Contacts** (`crm_contacts`) — people, optionally linked to an
+  account.
+- **Leads** (`crm_leads`) — unqualified prospects with a status
+  (`NEW → CONTACTED → QUALIFIED → CONVERTED`/`LOST`) and a
+  `POST /crm/leads/:id/convert` action that creates an Account (if the
+  lead has a company name) + a Contact in one transaction and marks the
+  lead `CONVERTED`.
+- **Deals** (`crm_deals`) — opportunities moving through a pipeline
+  (`PROSPECTING → QUALIFICATION → PROPOSAL → NEGOTIATION → WON`/`LOST`),
+  with a value in cents + currency and an optional account/contact
+  link.
+
+All four are company-scoped, soft-deleted (`deletedAt`), and permission
+gated by a single set of module-level permissions — `crm:read`,
+`crm:write`, `crm:delete` — rather than one per entity, matching the
+granularity of `branches:manage`/`settings:manage` elsewhere in the
+catalog instead of multiplying into a dozen-plus CRM-specific keys.
+
+### Reports & export
+
+`GET /crm/reports/summary` (also exposed as the `crmSummary` GraphQL
+query, used by the CRM dashboard's stat tiles), `GET
+/crm/reports/pipeline` (deal count + value grouped by stage — powers
+the dashboard's stage bar chart), and `GET /crm/reports/leads-funnel`
+(lead count grouped by status). Every list endpoint also has a sibling
+`GET .../export` returning `text/csv` of the current filtered result
+set (capped at 5,000 rows), registered before the `:id` route so the
+literal `export` path segment isn't swallowed by the id param.
+
+### Generic comments module
+
+`apps/api/src/modules/comments/` mirrors the Attachments module's
+polymorphic `(entityType, entityId)` pattern from Milestone 6 —
+`POST/GET /comments`, `PATCH/DELETE /comments/:id` (edit/delete
+restricted to the comment's own author) — so any future module can add
+a comment thread to its records with zero new backend code, the same
+way Attachments already works for file uploads.
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/crm/` — an overview page (stat tiles +
+pipeline-by-stage bar chart, styled per the dataviz skill's mark specs
+to match the Milestone 5 dashboard chart) plus list pages for each
+entity (search, filters, inline create, CSV export via an authenticated
+blob download — `window.open` can't carry the Bearer token, so exports
+are fetched through the API client and turned into a
+`Blob`/`URL.createObjectURL` download) and an account detail page
+nesting its contacts/deals plus the first live usage of the
+`CommentsPanel`/`AttachmentsPanel` components, both reusable by any
+future module's detail page.
+
+### A gotcha worth knowing: granting a brand-new permission
+
+Adding a permission key to `PERMISSION_CATALOG` only inserts the
+`Permission` row (done automatically at API boot and via `db:seed`) —
+it does **not** retroactively grant it to existing roles. Freshly
+registered companies pick it up automatically (`AuthService.register`
+grants its Super Admin role every permission that exists in the table
+at registration time), but a pre-existing company's roles need it
+granted explicitly (re-run `db:seed` for the local demo company, or use
+the Roles UI/API in a real one) — the same way any other new permission
+would need rolling out.

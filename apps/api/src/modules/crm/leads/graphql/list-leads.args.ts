@@ -1,9 +1,10 @@
 import { ArgsType, Field, Int, ObjectType } from "@nestjs/graphql";
-import { IsInt, IsOptional, IsString, Max, Min } from "class-validator";
-import { UserType } from "./user.type";
+import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
+import { CrmLeadStatus } from "@omniflow/database";
+import { CrmLeadType } from "./lead.type";
 
 @ArgsType()
-export class ListUsersArgs {
+export class ListLeadsArgs {
   @Field(() => Int, { defaultValue: 1 })
   @IsInt()
   @Min(1)
@@ -19,12 +20,17 @@ export class ListUsersArgs {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsEnum(CrmLeadStatus)
+  status?: string;
 }
 
 @ObjectType()
-export class PaginatedUsers {
-  @Field(() => [UserType])
-  items!: UserType[];
+export class PaginatedCrmLeads {
+  @Field(() => [CrmLeadType])
+  items!: CrmLeadType[];
 
   @Field(() => Int)
   total!: number;
