@@ -14,6 +14,9 @@ export const PERMISSIONS = {
   CRM_READ: "crm:read",
   CRM_WRITE: "crm:write",
   CRM_DELETE: "crm:delete",
+  SALES_READ: "sales:read",
+  SALES_WRITE: "sales:write",
+  SALES_DELETE: "sales:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -94,5 +97,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "crm",
     action: "delete",
     description: "Delete CRM accounts, contacts, leads, and deals",
+  },
+  {
+    key: PERMISSIONS.SALES_READ,
+    module: "sales",
+    action: "read",
+    description: "View products, quotes, sales orders, and invoices",
+  },
+  {
+    key: PERMISSIONS.SALES_WRITE,
+    module: "sales",
+    action: "write",
+    description: "Create and edit products, quotes, sales orders, and invoices",
+  },
+  {
+    key: PERMISSIONS.SALES_DELETE,
+    module: "sales",
+    action: "delete",
+    description: "Delete products, quotes, sales orders, and invoices",
   },
 ];

@@ -97,6 +97,29 @@ enum CrmDealStage {
   LOST
 }
 
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum SalesOrderStatus {
+  DRAFT
+  CONFIRMED
+  FULFILLED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
 // ---------------------------------------------------------------------------
 // Tenancy
 // ---------------------------------------------------------------------------
@@ -131,6 +154,10 @@ model Company {
   crmContacts   CrmContact[]
   crmLeads      CrmLead[]
   crmDeals      CrmDeal[]
+  products      Product[]
+  quotes        Quote[]
+  salesOrders   SalesOrder[]
+  invoices      Invoice[]
 
   @@index([status])
   @@map("companies")
@@ -206,6 +233,9 @@ model User {
   ownedCrmLeads         CrmLead[]
   ownedCrmDeals         CrmDeal[]
   authoredComments      Comment[]
+  ownedQuotes           Quote[]
+  ownedSalesOrders      SalesOrder[]
+  ownedInvoices         Invoice[]
 
   @@index([companyId, status])
   @@map("users")
@@ -510,10 +540,13 @@ model CrmAccount {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  company  Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  owner    User?        @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  contacts CrmContact[]
-  deals    CrmDeal[]
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  owner       User?        @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  contacts    CrmContact[]
+  deals       CrmDeal[]
+  quotes      Quote[]
+  salesOrders SalesOrder[]
+  invoices    Invoice[]
 
   @@index([companyId, deletedAt])
   @@map("crm_accounts")
@@ -534,10 +567,13 @@ model CrmContact {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  account CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  owner   User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  deals   CrmDeal[]
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account     CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  owner       User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  deals       CrmDeal[]
+  quotes      Quote[]
+  salesOrders SalesOrder[]
+  invoices    Invoice[]
 
   @@index([companyId, deletedAt])
   @@index([accountId])
@@ -592,4 +628,125 @@ model CrmDeal {
   @@index([accountId])
   @@index([contactId])
   @@map("crm_deals")
+}
+
+// ---------------------------------------------------------------------------
+// Sales (Milestone 7b — second business module)
+// ---------------------------------------------------------------------------
+
+/// A sellable item or service in the company's catalog.
+model Product {
+  id            String    @id @default(uuid())
+  companyId     String    @map("company_id")
+  sku           String
+  name          String
+  description   String?
+  unitPriceCents Int      @default(0) @map("unit_price_cents")
+  currency      String    @default("USD")
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, sku])
+  @@index([companyId, deletedAt])
+  @@map("products")
+}
+
+/// A price quote sent to a prospective or existing customer. Line items are
+/// stored as a JSON snapshot (not a live join to Product) so a quote's
+/// price/description never changes after the fact even if the underlying
+/// product is later repriced or renamed.
+model Quote {
+  id             String      @id @default(uuid())
+  companyId      String      @map("company_id")
+  accountId      String      @map("account_id")
+  contactId      String?     @map("contact_id")
+  quoteNumber    String      @map("quote_number")
+  status         QuoteStatus @default(DRAFT)
+  items          Json
+  subtotalCents  Int         @default(0) @map("subtotal_cents")
+  discountCents  Int         @default(0) @map("discount_cents")
+  taxCents       Int         @default(0) @map("tax_cents")
+  totalCents     Int         @default(0) @map("total_cents")
+  currency       String      @default("USD")
+  validUntil     DateTime?   @map("valid_until")
+  ownerId        String?     @map("owner_id")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  deletedAt      DateTime?   @map("deleted_at")
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account    CrmAccount  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  contact    CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  owner      User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  salesOrder SalesOrder?
+
+  @@unique([companyId, quoteNumber])
+  @@index([companyId, deletedAt, status])
+  @@map("quotes")
+}
+
+/// A confirmed order, either converted from an accepted Quote or created
+/// directly.
+model SalesOrder {
+  id          String           @id @default(uuid())
+  companyId   String           @map("company_id")
+  accountId   String           @map("account_id")
+  contactId   String?          @map("contact_id")
+  quoteId     String?          @unique @map("quote_id")
+  orderNumber String           @map("order_number")
+  status      SalesOrderStatus @default(DRAFT)
+  items       Json
+  totalCents  Int              @default(0) @map("total_cents")
+  currency    String           @default("USD")
+  ownerId     String?          @map("owner_id")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  deletedAt   DateTime?        @map("deleted_at")
+
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account CrmAccount  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  contact CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  quote   Quote?      @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  owner   User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  invoice Invoice?
+
+  @@unique([companyId, orderNumber])
+  @@index([companyId, deletedAt, status])
+  @@map("sales_orders")
+}
+
+/// A bill sent to the customer, either converted from a SalesOrder or
+/// created directly. Payment collection itself (gateways, ledger entries)
+/// is out of scope here — `markPaid` just records that money arrived.
+model Invoice {
+  id            String        @id @default(uuid())
+  companyId     String        @map("company_id")
+  accountId     String        @map("account_id")
+  contactId     String?       @map("contact_id")
+  salesOrderId  String?       @unique @map("sales_order_id")
+  invoiceNumber String        @map("invoice_number")
+  status        InvoiceStatus @default(DRAFT)
+  items         Json
+  totalCents    Int           @default(0) @map("total_cents")
+  currency      String        @default("USD")
+  dueDate       DateTime?     @map("due_date")
+  paidAt        DateTime?     @map("paid_at")
+  ownerId       String?       @map("owner_id")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  deletedAt     DateTime?     @map("deleted_at")
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account    CrmAccount  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  contact    CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  salesOrder SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  owner      User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, invoiceNumber])
+  @@index([companyId, deletedAt, status])
+  @@map("invoices")
 }

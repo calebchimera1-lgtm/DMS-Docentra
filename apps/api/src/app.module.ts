@@ -24,6 +24,7 @@ import { NotificationsModule } from "./modules/notifications/notifications.modul
 import { PermissionsModule } from "./modules/permissions/permissions.module";
 import { PluginsModule } from "./modules/plugins/plugins.module";
 import { RolesModule } from "./modules/roles/roles.module";
+import { SalesModule } from "./modules/sales/sales.module";
 import { UsersModule } from "./modules/users/users.module";
 import { JobsModule } from "./jobs/jobs.module";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -66,6 +67,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
     // Business modules (CRM, Sales, Inventory, ...) are added one at a
     // time starting in Milestone 7 — see docs/architecture.
     CrmModule,
+    SalesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },

@@ -150,3 +150,83 @@ export interface CrmAttachment {
   sizeBytes: number;
   createdAt: string;
 }
+
+export interface Product {
+  id: string;
+  sku: string;
+  name: string;
+  description: string | null;
+  unitPriceCents: number;
+  currency: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface LineItem {
+  productId?: string;
+  description: string;
+  quantity: number;
+  unitPriceCents: number;
+  totalCents: number;
+}
+
+export type QuoteStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "EXPIRED";
+
+export interface Quote {
+  id: string;
+  quoteNumber: string;
+  status: QuoteStatus;
+  items: LineItem[];
+  subtotalCents: number;
+  discountCents: number;
+  taxCents: number;
+  totalCents: number;
+  currency: string;
+  account: { id: string; name: string } | null;
+  salesOrder?: { id: string; orderNumber: string } | null;
+  createdAt: string;
+}
+
+export type SalesOrderStatus = "DRAFT" | "CONFIRMED" | "FULFILLED" | "CANCELLED";
+
+export interface SalesOrder {
+  id: string;
+  orderNumber: string;
+  status: SalesOrderStatus;
+  items: LineItem[];
+  totalCents: number;
+  currency: string;
+  account: { id: string; name: string } | null;
+  quote?: { id: string; quoteNumber: string } | null;
+  invoice?: { id: string; invoiceNumber: string } | null;
+  createdAt: string;
+}
+
+export type InvoiceStatus = "DRAFT" | "SENT" | "PAID" | "OVERDUE" | "CANCELLED";
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  status: InvoiceStatus;
+  items: LineItem[];
+  totalCents: number;
+  currency: string;
+  dueDate: string | null;
+  paidAt: string | null;
+  account: { id: string; name: string } | null;
+  salesOrder?: { id: string; orderNumber: string } | null;
+  createdAt: string;
+}
+
+export interface SalesSummary {
+  productCount: number;
+  openQuoteCount: number;
+  openOrderCount: number;
+  revenueBookedCents: number;
+  revenueCollectedCents: number;
+  overdueInvoiceCount: number;
+}
+
+export interface InvoicesByStatus {
+  statuses: { status: InvoiceStatus; count: number; totalCents: number }[];
+}

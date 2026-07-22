@@ -389,3 +389,81 @@ at registration time), but a pre-existing company's roles need it
 granted explicitly (re-run `db:seed` for the local demo company, or use
 the Roles UI/API in a real one) — the same way any other new permission
 would need rolling out.
+
+## Sales (Milestone 7b — second business module)
+
+Source: `apps/api/src/modules/sales/` (`products/`, `quotes/`,
+`orders/`, `invoices/`, `reports/`, `common/`).
+
+The quote-to-cash flow, built on top of the CRM accounts/contacts from
+Milestone 7a. Same shape as CRM (REST + GraphQL, search/pagination,
+CSV export, RBAC, audit logging), plus a document-conversion chain
+that's the module's centerpiece.
+
+### Entities
+
+- **Products** (`products`) — the sellable catalog: SKU (unique per
+  company), name, unit price, currency, active flag. Plain CRUD, no
+  line items of its own.
+- **Quotes** (`quotes`) — sent to a CRM account (optionally a specific
+  contact), moving through `DRAFT → SENT → ACCEPTED`/`REJECTED`/
+  `EXPIRED`. `POST /sales/quotes/:id/convert-to-order` requires
+  `ACCEPTED` and refuses a second conversion (checked via the 1:1
+  `Quote.salesOrder` relation).
+- **Sales Orders** (`sales_orders`) — `DRAFT → CONFIRMED → FULFILLED`/
+  `CANCELLED`, created either by converting a quote or directly.
+  `POST /sales/orders/:id/convert-to-invoice` creates an Invoice with a
+  30-day due date and refuses a second conversion.
+- **Invoices** (`invoices`) — `DRAFT → SENT → PAID`/`OVERDUE`/
+  `CANCELLED`. `POST /sales/invoices/:id/mark-paid` sets `paidAt` and
+  refuses to run twice or on a cancelled invoice. Payment collection
+  itself (gateways, ledger entries) is out of scope here — this module
+  only records that money arrived, matching the "Sales" vs. future
+  "Accounting" boundary.
+
+All four share one permission set (`sales:read`/`sales:write`/
+`sales:delete`), the same granularity choice as CRM.
+
+### Line items are a JSON snapshot, not a live join
+
+Quotes/Orders/Invoices store `items` as a JSON array
+(`{ productId?, description, quantity, unitPriceCents, totalCents }`)
+computed server-side from the request (`priceLineItems` in
+`sales/common/line-item.dto.ts`), rather than a child table joined to
+`Product`. This is deliberate: a quote's price and description must
+never change after the fact just because the underlying product was
+later repriced or renamed — the document is a point-in-time snapshot.
+GraphQL exposes `items` as a typed `[LineItemType]` rather than a raw
+JSON scalar (the project has no `graphql-type-json` dependency, and a
+typed list is cleaner anyway).
+
+### Document numbers
+
+`Q-000001`, `SO-000001`, `INV-000001` — a zero-padded, per-company
+running count (`formatDocumentNumber` in
+`sales/common/document-number.util.ts`). Not strictly collision-proof
+under concurrent creates (no row lock), but the `@@unique([companyId,
+quoteNumber])` constraint (and siblings) makes any race fail safe with
+a 500 rather than silently duplicating a number.
+
+### Reports & export
+
+`GET /sales/reports/summary` (active product count, open quotes/
+orders, revenue booked — all non-cancelled order totals — vs. revenue
+collected — paid invoice totals, overdue invoice count) and `GET
+/sales/reports/invoices-by-status` (count + value grouped by status,
+powering the Sales overview's chart). Every list endpoint has a CSV
+export sibling, same pattern as CRM.
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/sales/` — an overview page (stat tiles +
+an invoice-status bar chart reusing CRM's `StageBarChart` component),
+a Products page with inline create, a Quotes page with a dynamic
+line-item editor (`LineItemsEditor`, add/remove rows, live subtotal)
+and a "Convert to order" action once a quote is accepted, and
+Orders/Invoices pages that are conversion-driven (status changes and
+"Convert to invoice"/"Mark paid" actions) rather than directly
+creatable — the UI nudges toward the same quote → order → invoice
+flow the backend enforces, even though the REST API itself allows
+creating an order or invoice directly.

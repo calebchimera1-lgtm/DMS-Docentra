@@ -89,7 +89,14 @@ Built and reviewed one at a time, in this order:
             pipeline/funnel reports, RBAC, audit logging, and comments/
             attachments on every record. See
             [docs/api](docs/api/README.md#crm-milestone-7--first-business-module).
-      - [ ] Sales, Inventory, Accounting, HR, Projects, and the rest.
+      - [x] **Sales** — a products catalog and a quote → sales order →
+            invoice conversion chain, each stage gated by status
+            (accepted quotes only, one conversion each) with a
+            JSON line-item snapshot so historical documents never
+            drift if a product is later repriced. Full CRUD + GraphQL,
+            CSV export, revenue reports, RBAC, audit logging. See
+            [docs/api](docs/api/README.md#sales-milestone-7b--second-business-module).
+      - [ ] Inventory, Accounting, HR, Projects, and the rest.
 
 ## Getting started (local development)
 

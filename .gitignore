@@ -57,3 +57,4 @@ infra/k8s/base/secret.yaml
 # Misc
 *.pem
 .eslintcache
+*.rdb
