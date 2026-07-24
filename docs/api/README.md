@@ -614,3 +614,80 @@ live running total that turns red until debits equal credits) plus a
 click-to-expand row showing posted lines and a "Post" action on
 drafts, and a Payments page whose record-payment form can optionally
 tie to an outstanding Sales invoice.
+
+## HR (Milestone 7e — fifth business module)
+
+Source: `apps/api/src/modules/hr/` (`departments/`, `employees/`,
+`leave-requests/`, `reports/`, plus shared GraphQL ref types in
+`common/hr-refs.type.ts`).
+
+Departments, employees, and a leave-request approval workflow. Unlike
+every prior module, HR records reference each other in a cycle — a
+`Department` has a `manager` (an `Employee`), and an `Employee` has a
+`department` — so this is the first module where cross-referencing
+GraphQL object types are factored into a shared file
+(`DepartmentRef`/`EmployeeRef` in `common/hr-refs.type.ts`) rather than
+defined one-directionally the way `StockProductRef`/`StockWarehouseRef`
+were for Inventory.
+
+### Entities
+
+- **Departments** (`departments`) — name, code (unique per company),
+  active flag, and an optional manager (an `Employee`). Deletion is
+  blocked while any employee is still assigned to it.
+- **Employees** (`employees`) — the HR record. Deliberately **not**
+  assumed to have a system login: `userId` is an optional, unique
+  back-reference to a `User`, and `firstName`/`lastName`/`email`/
+  `phone` are stored on `Employee` itself rather than read through the
+  user relation, since a contractor or a not-yet-onboarded hire may
+  never get one. `employeeNumber` is auto-generated the same way as
+  every other document number in the app (`formatDocumentNumber("EMP",
+  count)`, reused from Sales). Employees can reference a `department`
+  and a `manager` (a self-relation on `Employee`), both validated to
+  belong to the same company, and a manager can't be set to the
+  employee itself. A dedicated `POST /hr/employees/:id/terminate`
+  transitions `status` to `TERMINATED` and stamps `terminationDate`
+  rather than allowing that through the general-purpose update
+  endpoint. Deletion is blocked while the employee still manages a
+  department or has direct reports — reassign them first.
+- **Leave requests** (`leave_requests`) — `type`
+  (`VACATION`/`SICK`/`UNPAID`/`OTHER`) plus a date range against one
+  `Employee`, starting `PENDING`. There's no soft-delete field on this
+  model by design — a leave request is either still pending (and can
+  be `cancel`led by the requester) or already reviewed (`approve`d /
+  `reject`ed), and reviewed history is kept, not deleted.
+  `approve`/`reject` both resolve the *calling user* to *their own*
+  `Employee` profile (`Employee.userId === currentUser.id`) to stamp as
+  `approverId` — a new wrinkle none of the earlier modules had, since
+  every other module's "acting user" was already the right ID to
+  record. A caller with no linked employee profile gets a 403 rather
+  than silently approving with a null approver.
+
+All three share one permission set (`hr:read`/`write`/`delete`), same
+granularity as every other business module.
+
+### GraphQL naming
+
+`EmploymentType`, `EmployeeStatus`, `LeaveType`, and
+`LeaveRequestStatus` were named up front specifically so they wouldn't
+collide with the natural GraphQL object names (`EmployeeType`,
+`DepartmentType`, `LeaveRequestType`) the way `NotificationType`,
+`StockMovementType`, and `LedgerAccountType` did in earlier milestones
+— so HR's GraphQL types didn't need the `*ItemType` collision-avoidance
+suffix reactively, only proactively-chosen enum names.
+
+### Reports
+
+`GET /hr/reports/summary` (active/total employee counts, on-leave
+count, active department count, pending leave request count) and `GET
+/hr/reports/headcount-by-department` (active, non-terminated headcount
+per department, plus an "Unassigned" bucket for employees without a
+department), powering the HR overview's stat tiles and bar chart.
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/hr/` — an overview (stat tiles + a
+headcount-by-department bar chart reusing CRM's `StageBarChart`), a
+Departments page, an Employees page with a "Terminate" row action, and
+a Leave Requests page with per-row Approve/Reject/Cancel actions on
+pending requests.

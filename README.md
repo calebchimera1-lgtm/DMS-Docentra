@@ -112,7 +112,14 @@ Built and reviewed one at a time, in this order:
             entry and can settle a Sales invoice. Full CRUD + GraphQL,
             P&L/balance reports, CSV export, RBAC, audit logging. See
             [docs/api](docs/api/README.md#accounting-milestone-7d--fourth-business-module).
-      - [ ] HR, Projects, and the rest.
+      - [x] **HR** — departments, employees (with a manager
+            self-relation and an optional link to a system `User`),
+            and a leave-request approval workflow that resolves the
+            calling user to their own employee profile before letting
+            them approve or reject. Full CRUD + GraphQL, headcount
+            reports, CSV export, RBAC, audit logging. See
+            [docs/api](docs/api/README.md#hr-milestone-7e--fifth-business-module).
+      - [ ] Projects, and the rest.
 
 ## Getting started (local development)
 

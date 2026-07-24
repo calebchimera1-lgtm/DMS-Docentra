@@ -21,6 +21,7 @@ import { CommentsModule } from "./modules/comments/comments.module";
 import { CrmModule } from "./modules/crm/crm.module";
 import { DashboardModule } from "./modules/dashboard/dashboard.module";
 import { HealthModule } from "./modules/health/health.module";
+import { HrModule } from "./modules/hr/hr.module";
 import { InventoryModule } from "./modules/inventory/inventory.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { PermissionsModule } from "./modules/permissions/permissions.module";
@@ -72,6 +73,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
     SalesModule,
     InventoryModule,
     AccountingModule,
+    HrModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },

@@ -23,6 +23,9 @@ export const PERMISSIONS = {
   ACCOUNTING_READ: "accounting:read",
   ACCOUNTING_WRITE: "accounting:write",
   ACCOUNTING_DELETE: "accounting:delete",
+  HR_READ: "hr:read",
+  HR_WRITE: "hr:write",
+  HR_DELETE: "hr:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -157,5 +160,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "accounting",
     action: "delete",
     description: "Delete ledger accounts and draft journal entries",
+  },
+  {
+    key: PERMISSIONS.HR_READ,
+    module: "hr",
+    action: "read",
+    description: "View departments, employees, and leave requests",
+  },
+  {
+    key: PERMISSIONS.HR_WRITE,
+    module: "hr",
+    action: "write",
+    description: "Create and edit departments, employees, and leave requests",
+  },
+  {
+    key: PERMISSIONS.HR_DELETE,
+    module: "hr",
+    action: "delete",
+    description: "Delete departments and employees",
   },
 ];

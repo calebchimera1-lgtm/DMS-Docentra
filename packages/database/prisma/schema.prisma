@@ -149,6 +149,33 @@ enum PaymentMethod {
   OTHER
 }
 
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERN
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+}
+
+enum LeaveType {
+  VACATION
+  SICK
+  UNPAID
+  OTHER
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
 // ---------------------------------------------------------------------------
 // Tenancy
 // ---------------------------------------------------------------------------
@@ -193,6 +220,9 @@ model Company {
   ledgerAccounts LedgerAccount[]
   journalEntries JournalEntry[]
   payments       Payment[]
+  departments    Department[]
+  employees      Employee[]
+  leaveRequests  LeaveRequest[]
 
   @@index([status])
   @@map("companies")
@@ -274,6 +304,7 @@ model User {
   recordedStockMovements StockMovement[]
   createdJournalEntries  JournalEntry[]
   recordedPayments       Payment[]
+  employeeProfile        Employee?
 
   @@index([companyId, status])
   @@map("users")
@@ -969,4 +1000,94 @@ model Payment {
   @@index([companyId, paymentDate])
   @@index([invoiceId])
   @@map("payments")
+}
+
+// ---------------------------------------------------------------------------
+// HR (Milestone 7e — fifth business module)
+// ---------------------------------------------------------------------------
+
+/// An organizational department/team.
+model Department {
+  id        String    @id @default(uuid())
+  companyId String    @map("company_id")
+  name      String
+  code      String
+  managerId String?   @map("manager_id")
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  manager   Employee?  @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
+  employees Employee[] @relation("EmployeeDepartment")
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt])
+  @@map("departments")
+}
+
+/// An HR record. Optionally linked to a system User (an employee doesn't
+/// need a login to exist in HR — e.g. before onboarding, or a contractor
+/// who never gets system access), so name/email/phone are stored here
+/// too rather than assumed to come from the linked account.
+model Employee {
+  id               String         @id @default(uuid())
+  companyId        String         @map("company_id")
+  userId           String?        @unique @map("user_id")
+  departmentId     String?        @map("department_id")
+  managerId        String?        @map("manager_id")
+  employeeNumber   String         @map("employee_number")
+  firstName        String         @map("first_name")
+  lastName         String         @map("last_name")
+  email            String?
+  phone            String?
+  jobTitle         String?        @map("job_title")
+  employmentType   EmploymentType @default(FULL_TIME) @map("employment_type")
+  status           EmployeeStatus @default(ACTIVE)
+  hireDate         DateTime       @map("hire_date")
+  terminationDate  DateTime?      @map("termination_date")
+  salaryCents      Int?           @map("salary_cents")
+  currency         String         @default("USD")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  deletedAt        DateTime?      @map("deleted_at")
+
+  company               Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user                  User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  department            Department?    @relation("EmployeeDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
+  manager               Employee?      @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: SetNull)
+  directReports         Employee[]     @relation("EmployeeManager")
+  managedDepartments    Department[]   @relation("DepartmentManager")
+  leaveRequests         LeaveRequest[] @relation("LeaveRequester")
+  approvedLeaveRequests LeaveRequest[] @relation("LeaveApprover")
+
+  @@unique([companyId, employeeNumber])
+  @@index([companyId, deletedAt, status])
+  @@index([departmentId])
+  @@map("employees")
+}
+
+/// A time-off request against an Employee's record.
+model LeaveRequest {
+  id          String              @id @default(uuid())
+  companyId   String              @map("company_id")
+  employeeId  String              @map("employee_id")
+  type        LeaveType
+  startDate   DateTime            @map("start_date")
+  endDate     DateTime            @map("end_date")
+  status      LeaveRequestStatus  @default(PENDING)
+  reason      String?
+  approverId  String?             @map("approver_id")
+  reviewedAt  DateTime?           @map("reviewed_at")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee Employee  @relation("LeaveRequester", fields: [employeeId], references: [id], onDelete: Cascade)
+  approver Employee? @relation("LeaveApprover", fields: [approverId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status])
+  @@index([employeeId])
+  @@map("leave_requests")
 }

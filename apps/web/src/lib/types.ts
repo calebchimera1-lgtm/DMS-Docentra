@@ -336,3 +336,69 @@ export interface AccountingSummary {
 export interface BalancesByType {
   types: { type: LedgerAccountType; debitCents: number; creditCents: number; balanceCents: number }[];
 }
+
+export interface HrEmployeeRef {
+  id: string;
+  employeeNumber: string;
+  firstName: string;
+  lastName: string;
+}
+
+export interface Department {
+  id: string;
+  name: string;
+  code: string;
+  isActive: boolean;
+  manager: HrEmployeeRef | null;
+}
+
+export type EmploymentType = "FULL_TIME" | "PART_TIME" | "CONTRACT" | "INTERN";
+export type EmployeeStatus = "ACTIVE" | "ON_LEAVE" | "TERMINATED";
+
+export interface Employee {
+  id: string;
+  employeeNumber: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phone: string | null;
+  jobTitle: string | null;
+  employmentType: EmploymentType;
+  status: EmployeeStatus;
+  hireDate: string;
+  terminationDate: string | null;
+  salaryCents: number | null;
+  currency: string;
+  department: { id: string; name: string; code: string } | null;
+  manager: HrEmployeeRef | null;
+}
+
+export type LeaveType = "VACATION" | "SICK" | "UNPAID" | "OTHER";
+export type LeaveRequestStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+
+export interface LeaveRequest {
+  id: string;
+  type: LeaveType;
+  startDate: string;
+  endDate: string;
+  status: LeaveRequestStatus;
+  reason: string | null;
+  reviewedAt: string | null;
+  employee: HrEmployeeRef;
+  approver: HrEmployeeRef | null;
+  createdAt: string;
+}
+
+export interface HrSummary {
+  activeEmployeeCount: number;
+  totalEmployeeCount: number;
+  onLeaveCount: number;
+  departmentCount: number;
+  pendingLeaveRequestCount: number;
+}
+
+export interface DepartmentHeadcount {
+  departmentId: string | null;
+  departmentName: string;
+  employeeCount: number;
+}

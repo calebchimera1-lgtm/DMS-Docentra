@@ -7,6 +7,7 @@ import {
   Boxes,
   LayoutDashboard,
   ShoppingCart,
+  UsersRound,
   Users2,
   X,
   type LucideIcon,
@@ -26,6 +27,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Sales", href: "/sales", icon: ShoppingCart },
   { label: "Inventory", href: "/inventory", icon: Boxes },
   { label: "Accounting", href: "/accounting", icon: Banknote },
+  { label: "HR", href: "/hr", icon: UsersRound },
 ];
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
