@@ -13,6 +13,7 @@ import { AppThrottlerGuard } from "./common/guards/throttler.guard";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { PermissionsGuard } from "./common/guards/permissions.guard";
 import { StorageModule } from "./common/storage/storage.module";
+import { AccountingModule } from "./modules/accounting/accounting.module";
 import { AttachmentsModule } from "./modules/attachments/attachments.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { BranchesModule } from "./modules/branches/branches.module";
@@ -70,6 +71,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
     CrmModule,
     SalesModule,
     InventoryModule,
+    AccountingModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },

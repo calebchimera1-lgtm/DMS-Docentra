@@ -105,7 +105,14 @@ Built and reviewed one at a time, in this order:
             filtering, CSV export, stock-value reports, RBAC, audit
             logging. See
             [docs/api](docs/api/README.md#inventory-milestone-7c--third-business-module).
-      - [ ] Accounting, HR, Projects, and the rest.
+      - [x] **Accounting** — a chart of accounts, double-entry journal
+            entries (rejecting unbalanced entries and unbalanced/
+            malformed lines before anything is written, immutable
+            once posted), and payments that atomically post a journal
+            entry and can settle a Sales invoice. Full CRUD + GraphQL,
+            P&L/balance reports, CSV export, RBAC, audit logging. See
+            [docs/api](docs/api/README.md#accounting-milestone-7d--fourth-business-module).
+      - [ ] HR, Projects, and the rest.
 
 ## Getting started (local development)
 

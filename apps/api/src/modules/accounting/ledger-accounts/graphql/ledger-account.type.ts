@@ -1,0 +1,19 @@
+import { Field, ID, ObjectType } from "@nestjs/graphql";
+
+@ObjectType()
+export class LedgerAccountItemType {
+  @Field(() => ID)
+  id!: string;
+
+  @Field()
+  code!: string;
+
+  @Field()
+  name!: string;
+
+  @Field()
+  type!: string;
+
+  @Field()
+  isActive!: boolean;
+}

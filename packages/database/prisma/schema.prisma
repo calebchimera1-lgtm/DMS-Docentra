@@ -129,6 +129,26 @@ enum StockMovementType {
   RETURN
 }
 
+enum LedgerAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum JournalEntryStatus {
+  DRAFT
+  POSTED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  OTHER
+}
+
 // ---------------------------------------------------------------------------
 // Tenancy
 // ---------------------------------------------------------------------------
@@ -170,6 +190,9 @@ model Company {
   warehouses    Warehouse[]
   stockItems    StockItem[]
   stockMovements StockMovement[]
+  ledgerAccounts LedgerAccount[]
+  journalEntries JournalEntry[]
+  payments       Payment[]
 
   @@index([status])
   @@map("companies")
@@ -249,6 +272,8 @@ model User {
   ownedSalesOrders      SalesOrder[]
   ownedInvoices         Invoice[]
   recordedStockMovements StockMovement[]
+  createdJournalEntries  JournalEntry[]
+  recordedPayments       Payment[]
 
   @@index([companyId, status])
   @@map("users")
@@ -760,6 +785,7 @@ model Invoice {
   contact    CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
   salesOrder SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
   owner      User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  payments   Payment[]
 
   @@unique([companyId, invoiceNumber])
   @@index([companyId, deletedAt, status])
@@ -839,4 +865,108 @@ model StockMovement {
   @@index([companyId, createdAt])
   @@index([productId, warehouseId])
   @@map("stock_movements")
+}
+
+// ---------------------------------------------------------------------------
+// Accounting (Milestone 7d — fourth business module)
+// ---------------------------------------------------------------------------
+
+/// A line in the chart of accounts. Named `LedgerAccount` (not `Account`)
+/// to stay unambiguous next to CRM's `CrmAccount` (a customer/prospect).
+model LedgerAccount {
+  id        String            @id @default(uuid())
+  companyId String            @map("company_id")
+  code      String
+  name      String
+  type      LedgerAccountType
+  isActive  Boolean           @default(true) @map("is_active")
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+  deletedAt DateTime?         @map("deleted_at")
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  journalLines  JournalLine[]
+  debitPayments  Payment[]     @relation("PaymentDebitAccount")
+  creditPayments Payment[]     @relation("PaymentCreditAccount")
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt, type])
+  @@map("ledger_accounts")
+}
+
+/// A double-entry journal entry. Once POSTED, an entry (and its lines) is
+/// immutable and cannot be deleted — enforced in JournalEntriesService, not
+/// at the schema level, the same way Sales enforces its status machine.
+model JournalEntry {
+  id          String             @id @default(uuid())
+  companyId   String             @map("company_id")
+  entryNumber String             @map("entry_number")
+  entryDate   DateTime           @map("entry_date")
+  memo        String?
+  status      JournalEntryStatus @default(DRAFT)
+  createdById String?            @map("created_by_id")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  deletedAt   DateTime?          @map("deleted_at")
+
+  company   Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  lines     JournalLine[]
+  payment   Payment?
+
+  @@unique([companyId, entryNumber])
+  @@index([companyId, deletedAt, status])
+  @@map("journal_entries")
+}
+
+/// One debit or credit line of a JournalEntry. Exactly one of
+/// debitCents/creditCents is non-zero — validated in the service layer,
+/// where the entry's overall debit == credit balance is also enforced.
+model JournalLine {
+  id              String  @id @default(uuid())
+  journalEntryId  String  @map("journal_entry_id")
+  ledgerAccountId String  @map("ledger_account_id")
+  debitCents      Int     @default(0) @map("debit_cents")
+  creditCents     Int     @default(0) @map("credit_cents")
+  description     String?
+  lineOrder       Int     @default(0) @map("line_order")
+
+  journalEntry  JournalEntry  @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  ledgerAccount LedgerAccount @relation(fields: [ledgerAccountId], references: [id], onDelete: Restrict)
+
+  @@index([journalEntryId])
+  @@index([ledgerAccountId])
+  @@map("journal_lines")
+}
+
+/// A record of money moving between two ledger accounts (e.g. Bank <-
+/// Accounts Receivable), optionally settling a Sales Invoice. Creating a
+/// Payment atomically posts a balanced JournalEntry — payments never exist
+/// without a corresponding, already-posted double-entry record.
+model Payment {
+  id              String        @id @default(uuid())
+  companyId       String        @map("company_id")
+  invoiceId       String?       @map("invoice_id")
+  amountCents     Int           @map("amount_cents")
+  currency        String        @default("USD")
+  method          PaymentMethod @default(BANK_TRANSFER)
+  paymentDate     DateTime      @map("payment_date")
+  debitAccountId  String        @map("debit_account_id")
+  creditAccountId String        @map("credit_account_id")
+  journalEntryId  String        @unique @map("journal_entry_id")
+  reference       String?
+  note            String?
+  createdById     String?       @map("created_by_id")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice       Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  debitAccount  LedgerAccount @relation("PaymentDebitAccount", fields: [debitAccountId], references: [id], onDelete: Restrict)
+  creditAccount LedgerAccount @relation("PaymentCreditAccount", fields: [creditAccountId], references: [id], onDelete: Restrict)
+  journalEntry  JournalEntry  @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  createdBy     User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, paymentDate])
+  @@index([invoiceId])
+  @@map("payments")
 }

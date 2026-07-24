@@ -25,7 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "CRM", href: "/crm", icon: Users2 },
   { label: "Sales", href: "/sales", icon: ShoppingCart },
   { label: "Inventory", href: "/inventory", icon: Boxes },
-  { label: "Accounting", href: "/accounting", icon: Banknote, disabled: true },
+  { label: "Accounting", href: "/accounting", icon: Banknote },
 ];
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {

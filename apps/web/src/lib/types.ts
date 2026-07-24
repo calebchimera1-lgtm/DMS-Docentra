@@ -276,3 +276,63 @@ export interface InventorySummary {
 export interface MovementsByType {
   types: { type: StockMovementType; count: number }[];
 }
+
+export type LedgerAccountType = "ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE";
+
+export interface LedgerAccount {
+  id: string;
+  code: string;
+  name: string;
+  type: LedgerAccountType;
+  isActive: boolean;
+}
+
+export type JournalEntryStatus = "DRAFT" | "POSTED";
+
+export interface JournalLine {
+  id: string;
+  debitCents: number;
+  creditCents: number;
+  description: string | null;
+  ledgerAccountId: string;
+  ledgerAccount: { id: string; code: string; name: string };
+}
+
+export interface JournalEntry {
+  id: string;
+  entryNumber: string;
+  entryDate: string;
+  memo: string | null;
+  status: JournalEntryStatus;
+  lines: JournalLine[];
+}
+
+export type PaymentMethod = "CASH" | "BANK_TRANSFER" | "CARD" | "OTHER";
+
+export interface Payment {
+  id: string;
+  amountCents: number;
+  currency: string;
+  method: PaymentMethod;
+  paymentDate: string;
+  reference: string | null;
+  invoice: { id: string; invoiceNumber: string } | null;
+  debitAccount: { id: string; code: string; name: string };
+  creditAccount: { id: string; code: string; name: string };
+  journalEntry: { id: string; entryNumber: string };
+}
+
+export interface AccountingSummary {
+  ledgerAccountCount: number;
+  draftEntryCount: number;
+  totalAssetsCents: number;
+  totalLiabilitiesCents: number;
+  totalEquityCents: number;
+  totalRevenueCents: number;
+  totalExpensesCents: number;
+  netIncomeCents: number;
+}
+
+export interface BalancesByType {
+  types: { type: LedgerAccountType; debitCents: number; creditCents: number; balanceCents: number }[];
+}

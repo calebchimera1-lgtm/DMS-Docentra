@@ -535,3 +535,82 @@ click on that accessible name hit the toggle instead of the submit
 and silently closed the form. Renamed the toggle to "New movement" —
 matching the "New X" / "Create X" (or here, "Record movement")
 convention every other module's create form already followed.
+
+## Accounting (Milestone 7d — fourth business module)
+
+Source: `apps/api/src/modules/accounting/` (`ledger-accounts/`,
+`journal-entries/`, `payments/`, `reports/`).
+
+A chart of accounts, double-entry journal entries, and payments —
+built on the `CrmAccount`/`Invoice` records from CRM and Sales rather
+than introducing parallel concepts. This is the module where
+correctness isn't optional: an unbalanced entry or a payment that
+doesn't post a matching journal entry would silently corrupt every
+report built on top of it, so the invariants are enforced at the
+point of writing, not caught later.
+
+### Entities
+
+- **Ledger accounts** (`ledger_accounts`) — the chart of accounts.
+  Modeled as `LedgerAccount`, not `Account`, to stay unambiguous next
+  to CRM's `CrmAccount` (a customer/prospect) — the same naming
+  discipline already applied to `NotificationItemType` and
+  `StockMovementItemType` on the GraphQL side (see below). Each has a
+  `type` (`ASSET`/`LIABILITY`/`EQUITY`/`REVENUE`/`EXPENSE`) that
+  determines its normal balance side. Deletion is blocked once any
+  `JournalLine` references it.
+- **Journal entries** (`journal_entries` + `journal_lines`) —
+  `DRAFT → POSTED`. `JournalEntriesService.create` requires every line
+  to have exactly one non-zero side and the entry's total debits to
+  equal its total credits, rejecting anything else with a 400 before
+  a single row is written. Once `POSTED`, an entry is immutable — it
+  cannot be deleted, and posting again is refused. There is
+  deliberately no "unpost" or "edit a posted entry" endpoint; fixing a
+  mistake means a new offsetting entry, the same as real bookkeeping.
+- **Payments** (`payments`) — records money moving between two ledger
+  accounts (e.g. Bank ← Accounts Receivable), optionally settling a
+  Sales `Invoice`. `PaymentsService.create` runs in one transaction:
+  post a balanced `JournalEntry` (two lines, both sides equal to the
+  payment amount) and, if an invoice was named, mark it `PAID` — a
+  payment and its journal entry are created together or not at all,
+  and paying an already-paid invoice is rejected up front.
+
+All three share one permission set (`accounting:read`/`write`/
+`delete`), same granularity as CRM/Sales/Inventory.
+
+### GraphQL naming: the fourth collision, guarded the same way
+
+`LedgerAccountType` is both the Prisma enum (asset/liability/…) and
+what the natural GraphQL object name would have been — the same
+collision already hit and fixed for `NotificationType` (Milestone 6)
+and `StockMovementType` (Milestone 7c). The GraphQL object type is
+`LedgerAccountItemType` here, matching the established
+`*ItemType` convention rather than reaching for a different pattern
+each time.
+
+### Reports
+
+`GET /accounting/reports/summary` (ledger account count, draft entry
+count, total assets/liabilities/equity/revenue/expenses, and net
+income = revenue − expenses) and `GET
+/accounting/reports/balances-by-type` (debit/credit totals and net
+balance per account type, powering the Accounting overview's chart).
+Both only consider `POSTED` journal lines — a draft entry hasn't
+happened yet from the ledger's point of view, so it can't move a
+reported balance. Computing "debit − credit" vs. "credit − debit" per
+type depends on the type's normal balance side (`ASSET`/`EXPENSE` are
+debit-normal; `LIABILITY`/`EQUITY`/`REVENUE` are credit-normal) —
+encoded once in `AccountingReportsService.balanceFor` rather than
+duplicated per report.
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/accounting/` — an overview (stat tiles +
+a balances-by-type bar chart reusing CRM's `StageBarChart`), a Chart
+of Accounts page, a Journal Entries page with a debit/credit line
+editor (`JournalLinesEditor` — each line picks a ledger account and a
+side rather than exposing two separate debit/credit fields, with a
+live running total that turns red until debits equal credits) plus a
+click-to-expand row showing posted lines and a "Post" action on
+drafts, and a Payments page whose record-payment form can optionally
+tie to an outstanding Sales invoice.

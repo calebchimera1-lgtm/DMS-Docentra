@@ -20,6 +20,9 @@ export const PERMISSIONS = {
   INVENTORY_READ: "inventory:read",
   INVENTORY_WRITE: "inventory:write",
   INVENTORY_DELETE: "inventory:delete",
+  ACCOUNTING_READ: "accounting:read",
+  ACCOUNTING_WRITE: "accounting:write",
+  ACCOUNTING_DELETE: "accounting:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -136,5 +139,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "inventory",
     action: "delete",
     description: "Delete warehouses",
+  },
+  {
+    key: PERMISSIONS.ACCOUNTING_READ,
+    module: "accounting",
+    action: "read",
+    description: "View the chart of accounts, journal entries, and payments",
+  },
+  {
+    key: PERMISSIONS.ACCOUNTING_WRITE,
+    module: "accounting",
+    action: "write",
+    description: "Create ledger accounts, journal entries, and payments",
+  },
+  {
+    key: PERMISSIONS.ACCOUNTING_DELETE,
+    module: "accounting",
+    action: "delete",
+    description: "Delete ledger accounts and draft journal entries",
   },
 ];
