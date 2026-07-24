@@ -230,3 +230,49 @@ export interface SalesSummary {
 export interface InvoicesByStatus {
   statuses: { status: InvoiceStatus; count: number; totalCents: number }[];
 }
+
+export interface Warehouse {
+  id: string;
+  name: string;
+  code: string;
+  address: string | null;
+  isActive: boolean;
+  _count?: { stockItems: number };
+  createdAt: string;
+}
+
+export interface StockItem {
+  id: string;
+  quantityOnHand: number;
+  reorderPoint: number;
+  reorderQuantity: number;
+  product: { id: string; sku: string; name: string; unitPriceCents: number; currency: string };
+  warehouse: { id: string; name: string; code: string };
+}
+
+export type StockMovementType = "RECEIPT" | "SALE" | "ADJUSTMENT" | "TRANSFER_IN" | "TRANSFER_OUT" | "RETURN";
+
+export interface StockMovement {
+  id: string;
+  type: StockMovementType;
+  quantity: number;
+  reference: string | null;
+  note: string | null;
+  product: { id: string; sku: string; name: string };
+  warehouse: { id: string; name: string; code: string };
+  createdBy: { id: string; firstName: string; lastName: string } | null;
+  createdAt: string;
+}
+
+export interface InventorySummary {
+  warehouseCount: number;
+  trackedItemCount: number;
+  totalUnitsOnHand: number;
+  totalStockValueCents: number;
+  lowStockCount: number;
+  totalMovementCount: number;
+}
+
+export interface MovementsByType {
+  types: { type: StockMovementType; count: number }[];
+}

@@ -120,6 +120,15 @@ enum InvoiceStatus {
   CANCELLED
 }
 
+enum StockMovementType {
+  RECEIPT
+  SALE
+  ADJUSTMENT
+  TRANSFER_IN
+  TRANSFER_OUT
+  RETURN
+}
+
 // ---------------------------------------------------------------------------
 // Tenancy
 // ---------------------------------------------------------------------------
@@ -158,6 +167,9 @@ model Company {
   quotes        Quote[]
   salesOrders   SalesOrder[]
   invoices      Invoice[]
+  warehouses    Warehouse[]
+  stockItems    StockItem[]
+  stockMovements StockMovement[]
 
   @@index([status])
   @@map("companies")
@@ -236,6 +248,7 @@ model User {
   ownedQuotes           Quote[]
   ownedSalesOrders      SalesOrder[]
   ownedInvoices         Invoice[]
+  recordedStockMovements StockMovement[]
 
   @@index([companyId, status])
   @@map("users")
@@ -648,7 +661,9 @@ model Product {
   updatedAt     DateTime  @updatedAt @map("updated_at")
   deletedAt     DateTime? @map("deleted_at")
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  stockItems     StockItem[]
+  stockMovements StockMovement[]
 
   @@unique([companyId, sku])
   @@index([companyId, deletedAt])
@@ -749,4 +764,79 @@ model Invoice {
   @@unique([companyId, invoiceNumber])
   @@index([companyId, deletedAt, status])
   @@map("invoices")
+}
+
+// ---------------------------------------------------------------------------
+// Inventory (Milestone 7c — third business module)
+// ---------------------------------------------------------------------------
+
+/// A physical or logical stock location.
+model Warehouse {
+  id        String    @id @default(uuid())
+  companyId String    @map("company_id")
+  name      String
+  code      String
+  address   String?
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  stockItems     StockItem[]
+  stockMovements StockMovement[]
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt])
+  @@map("warehouses")
+}
+
+/// Current on-hand quantity of a Product at a Warehouse — a cache
+/// maintained transactionally alongside each StockMovement, not a
+/// standalone source of truth (the movement ledger is that).
+model StockItem {
+  id              String   @id @default(uuid())
+  companyId       String   @map("company_id")
+  productId       String   @map("product_id")
+  warehouseId     String   @map("warehouse_id")
+  quantityOnHand  Int      @default(0) @map("quantity_on_hand")
+  reorderPoint    Int      @default(0) @map("reorder_point")
+  reorderQuantity Int      @default(0) @map("reorder_quantity")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, warehouseId])
+  @@index([companyId])
+  @@map("stock_items")
+}
+
+/// An append-only ledger entry recording a change in stock. `quantity` is
+/// a signed delta (positive for RECEIPT/RETURN/TRANSFER_IN, negative for
+/// SALE/TRANSFER_OUT/a reducing ADJUSTMENT) applied to the corresponding
+/// StockItem.quantityOnHand inside the same transaction that creates this
+/// row, so the cache and the ledger can never drift apart.
+model StockMovement {
+  id          String            @id @default(uuid())
+  companyId   String            @map("company_id")
+  productId   String            @map("product_id")
+  warehouseId String            @map("warehouse_id")
+  type        StockMovementType
+  quantity    Int
+  reference   String?
+  note        String?
+  createdById String?           @map("created_by_id")
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([productId, warehouseId])
+  @@map("stock_movements")
 }

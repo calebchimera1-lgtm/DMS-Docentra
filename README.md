@@ -96,7 +96,16 @@ Built and reviewed one at a time, in this order:
             drift if a product is later repriced. Full CRUD + GraphQL,
             CSV export, revenue reports, RBAC, audit logging. See
             [docs/api](docs/api/README.md#sales-milestone-7b--second-business-module).
-      - [ ] Inventory, Accounting, HR, Projects, and the rest.
+      - [x] **Inventory** — warehouses, per-warehouse stock levels, and
+            an append-only movement ledger (receipts, sales,
+            adjustments, transfers, returns). Every stock change is
+            recorded transactionally alongside the movement that
+            caused it, with overselling prevented at the database
+            transaction level. Full CRUD + GraphQL, low-stock
+            filtering, CSV export, stock-value reports, RBAC, audit
+            logging. See
+            [docs/api](docs/api/README.md#inventory-milestone-7c--third-business-module).
+      - [ ] Accounting, HR, Projects, and the rest.
 
 ## Getting started (local development)
 

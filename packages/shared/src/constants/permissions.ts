@@ -17,6 +17,9 @@ export const PERMISSIONS = {
   SALES_READ: "sales:read",
   SALES_WRITE: "sales:write",
   SALES_DELETE: "sales:delete",
+  INVENTORY_READ: "inventory:read",
+  INVENTORY_WRITE: "inventory:write",
+  INVENTORY_DELETE: "inventory:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -115,5 +118,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "sales",
     action: "delete",
     description: "Delete products, quotes, sales orders, and invoices",
+  },
+  {
+    key: PERMISSIONS.INVENTORY_READ,
+    module: "inventory",
+    action: "read",
+    description: "View warehouses, stock levels, and stock movements",
+  },
+  {
+    key: PERMISSIONS.INVENTORY_WRITE,
+    module: "inventory",
+    action: "write",
+    description: "Create and edit warehouses and record stock movements",
+  },
+  {
+    key: PERMISSIONS.INVENTORY_DELETE,
+    module: "inventory",
+    action: "delete",
+    description: "Delete warehouses",
   },
 ];

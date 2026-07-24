@@ -24,7 +24,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "CRM", href: "/crm", icon: Users2 },
   { label: "Sales", href: "/sales", icon: ShoppingCart },
-  { label: "Inventory", href: "/inventory", icon: Boxes, disabled: true },
+  { label: "Inventory", href: "/inventory", icon: Boxes },
   { label: "Accounting", href: "/accounting", icon: Banknote, disabled: true },
 ];
 

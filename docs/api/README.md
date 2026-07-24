@@ -467,3 +467,71 @@ Orders/Invoices pages that are conversion-driven (status changes and
 creatable — the UI nudges toward the same quote → order → invoice
 flow the backend enforces, even though the REST API itself allows
 creating an order or invoice directly.
+
+## Inventory (Milestone 7c — third business module)
+
+Source: `apps/api/src/modules/inventory/` (`warehouses/`, `stock/`,
+`movements/`, `reports/`).
+
+Warehouses, per-warehouse stock levels, and a movement ledger — built
+on the `Product` catalog from Sales (Milestone 7b) rather than
+introducing a second product model. This is the module where "the
+number on screen" and "the audit trail of how it got there" have to
+agree by construction, not by convention.
+
+### Entities
+
+- **Warehouses** (`warehouses`) — a physical/logical stock location,
+  company-unique code. Cannot be deleted while any `StockItem` still
+  holds a non-zero quantity.
+- **Stock items** (`stock_items`) — the *current* on-hand quantity of
+  a `Product` at a `Warehouse` (`@@unique([productId, warehouseId])`),
+  plus a reorder point/quantity. This is a **cache**, not a source of
+  truth — see below.
+- **Stock movements** (`stock_movements`) — an append-only ledger.
+  `POST /inventory/movements` is the only way to change a stock
+  item's quantity; there is no direct "set quantity" endpoint.
+
+### The cache and the ledger can never drift apart
+
+Recording a movement (`MovementsService.create`) runs inside a single
+Prisma `$transaction`: it upserts the `StockItem` (creating it at zero
+on first use), computes a signed delta from the movement type
+(`RECEIPT`/`RETURN`/`TRANSFER_IN` are positive, `SALE`/`TRANSFER_OUT`
+are negative, `ADJUSTMENT` takes the caller's signed value directly),
+rejects the whole transaction with a 400 if the resulting quantity
+would go negative (overselling/over-transferring prevention), and only
+then writes both the updated `StockItem.quantityOnHand` and the new
+`StockMovement` row. There is no code path that updates one without
+the other.
+
+### Reports & the low-stock query's tradeoff
+
+`GET /inventory/reports/summary` (warehouse/tracked-item counts, total
+units on hand, total stock value — quantity × unit price, summed
+client-side after the query since it multiplies two columns from
+different tables — low-stock count, total movement count) and `GET
+/inventory/reports/movements-by-type`. The `lowStock=true` filter on
+`GET /inventory/stock` has the same two-columns-on-one-row problem
+(`quantityOnHand <= reorderPoint`): Prisma's query builder can't
+express it, so that filter fetches the (already company/warehouse/
+product-scoped) result set unpaginated and filters/paginates in
+memory. Fine at the scale a single company's stock table reaches;
+would need a raw query or a generated column at real scale — noted
+in a comment at the filtering code rather than silently accepted.
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/inventory/` — an overview (stat tiles +
+a movements-by-type bar chart), a Warehouses page, a Stock page
+(low-stock checkbox filter, inline reorder-point editing, per-row
+value = quantity × unit price), and a Movements page with a
+record-movement form (product/warehouse/type selects, a quantity
+field whose placeholder changes to clarify signed input for
+`ADJUSTMENT`). Browser-testing this form caught a real bug before it
+shipped: the "show the create form" toggle button and the form's own
+submit button were both labeled "Record movement", so an automated
+click on that accessible name hit the toggle instead of the submit
+and silently closed the form. Renamed the toggle to "New movement" —
+matching the "New X" / "Create X" (or here, "Record movement")
+convention every other module's create form already followed.
