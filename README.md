@@ -119,7 +119,13 @@ Built and reviewed one at a time, in this order:
             them approve or reject. Full CRUD + GraphQL, headcount
             reports, CSV export, RBAC, audit logging. See
             [docs/api](docs/api/README.md#hr-milestone-7e--fifth-business-module).
-      - [ ] Projects, and the rest.
+      - [x] **Projects** — projects (optionally tied to a CRM account),
+            tasks with status/priority/assignee, and time entries
+            logged as minutes against a task, editable only by the
+            user who logged them. Full CRUD + GraphQL, task-status
+            reports, CSV export, RBAC, audit logging. See
+            [docs/api](docs/api/README.md#projects-milestone-7f--sixth-business-module).
+      - [ ] The rest.
 
 ## Getting started (local development)
 

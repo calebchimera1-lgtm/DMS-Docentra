@@ -223,6 +223,9 @@ model Company {
   departments    Department[]
   employees      Employee[]
   leaveRequests  LeaveRequest[]
+  projects       Project[]
+  projectTasks   ProjectTask[]
+  timeEntries    TimeEntry[]
 
   @@index([status])
   @@map("companies")
@@ -305,6 +308,9 @@ model User {
   createdJournalEntries  JournalEntry[]
   recordedPayments       Payment[]
   employeeProfile        Employee?
+  ownedProjects          Project[]     @relation("ProjectOwner")
+  assignedTasks          ProjectTask[] @relation("TaskAssignee")
+  timeEntries            TimeEntry[]   @relation("TimeEntryUser")
 
   @@index([companyId, status])
   @@map("users")
@@ -616,6 +622,7 @@ model CrmAccount {
   quotes      Quote[]
   salesOrders SalesOrder[]
   invoices    Invoice[]
+  projects    Project[]
 
   @@index([companyId, deletedAt])
   @@map("crm_accounts")
@@ -1090,4 +1097,109 @@ model LeaveRequest {
   @@index([companyId, status])
   @@index([employeeId])
   @@map("leave_requests")
+}
+
+// ---------------------------------------------------------------------------
+// Projects (Milestone 7f — sixth business module)
+// ---------------------------------------------------------------------------
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+/// A unit of billable or internal work, optionally tied to a CRM account
+/// (client work) and owned by a User (the project manager).
+model Project {
+  id          String        @id @default(uuid())
+  companyId   String        @map("company_id")
+  accountId   String?       @map("account_id")
+  ownerId     String?       @map("owner_id")
+  name        String
+  code        String
+  description String?
+  status      ProjectStatus @default(PLANNING)
+  startDate   DateTime?     @map("start_date")
+  endDate     DateTime?     @map("end_date")
+  budgetCents Int?          @map("budget_cents")
+  currency    String        @default("USD")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  deletedAt   DateTime?     @map("deleted_at")
+
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  owner   User?       @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  tasks   ProjectTask[]
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt, status])
+  @@map("projects")
+}
+
+/// A task within a project, optionally assigned to a User.
+model ProjectTask {
+  id               String       @id @default(uuid())
+  companyId        String       @map("company_id")
+  projectId        String       @map("project_id")
+  assigneeId       String?      @map("assignee_id")
+  title            String
+  description      String?
+  status           TaskStatus   @default(TODO)
+  priority         TaskPriority @default(MEDIUM)
+  dueDate          DateTime?    @map("due_date")
+  estimatedMinutes Int?         @map("estimated_minutes")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+  deletedAt        DateTime?    @map("deleted_at")
+
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee    User?       @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  timeEntries TimeEntry[]
+
+  @@index([companyId, deletedAt, status])
+  @@index([projectId])
+  @@map("project_tasks")
+}
+
+/// A logged block of time (in minutes) against a task, by the user who did
+/// the work. Append-only in spirit — corrections happen through delete +
+/// re-log, same as Inventory's movement ledger.
+model TimeEntry {
+  id        String   @id @default(uuid())
+  companyId String   @map("company_id")
+  taskId    String   @map("task_id")
+  userId    String   @map("user_id")
+  minutes   Int
+  entryDate DateTime @map("entry_date")
+  note      String?
+  billable  Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  task    ProjectTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user    User        @relation("TimeEntryUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, entryDate])
+  @@index([taskId])
+  @@map("time_entries")
 }

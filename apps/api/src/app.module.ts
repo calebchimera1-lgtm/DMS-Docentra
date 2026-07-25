@@ -26,6 +26,7 @@ import { InventoryModule } from "./modules/inventory/inventory.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { PermissionsModule } from "./modules/permissions/permissions.module";
 import { PluginsModule } from "./modules/plugins/plugins.module";
+import { ProjectsModule } from "./modules/projects/projects.module";
 import { RolesModule } from "./modules/roles/roles.module";
 import { SalesModule } from "./modules/sales/sales.module";
 import { UsersModule } from "./modules/users/users.module";
@@ -74,6 +75,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
     InventoryModule,
     AccountingModule,
     HrModule,
+    ProjectsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },

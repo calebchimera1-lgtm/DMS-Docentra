@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Banknote,
   Boxes,
+  FolderKanban,
   LayoutDashboard,
   ShoppingCart,
   UsersRound,
@@ -28,6 +29,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Inventory", href: "/inventory", icon: Boxes },
   { label: "Accounting", href: "/accounting", icon: Banknote },
   { label: "HR", href: "/hr", icon: UsersRound },
+  { label: "Projects", href: "/projects", icon: FolderKanban },
 ];
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {

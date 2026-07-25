@@ -691,3 +691,77 @@ headcount-by-department bar chart reusing CRM's `StageBarChart`), a
 Departments page, an Employees page with a "Terminate" row action, and
 a Leave Requests page with per-row Approve/Reject/Cancel actions on
 pending requests.
+
+## Projects (Milestone 7f — sixth business module)
+
+Source: `apps/api/src/modules/projects/` (`projects/`, `tasks/`,
+`time-entries/`, `reports/`, plus shared GraphQL ref types in
+`common/project-refs.type.ts`).
+
+Projects, tasks, and time tracking. A project optionally belongs to a
+CRM account (client work) and has an optional owner (a `User`); tasks
+belong to a project and are optionally assigned to a `User`; time
+entries are minutes logged against a task by the user who did the
+work — modeled as an integer (`minutes`), the same "no floats for a
+countable unit" discipline the schema already applies to money
+(`*Cents`) and stock (`quantityOnHand`).
+
+### Entities
+
+- **Projects** (`projects`) — name, code (unique per company),
+  `status` (`PLANNING`/`ACTIVE`/`ON_HOLD`/`COMPLETED`/`CANCELLED`),
+  optional date range and budget, an optional `CrmAccount` link, and an
+  optional owning `User`. Deletion is blocked while the project still
+  has tasks.
+- **Tasks** (`project_tasks`) — title, `status`
+  (`TODO`/`IN_PROGRESS`/`IN_REVIEW`/`DONE`), `priority`
+  (`LOW`/`MEDIUM`/`HIGH`/`URGENT`), an optional due date and estimate,
+  and an optional assignee. Deletion is blocked once any time has been
+  logged against it, the same "can't delete once it has activity"
+  invariant used for ledger accounts and warehouses.
+- **Time entries** (`time_entries`) — minutes logged against a task by
+  a `User`, always the calling user (there's no field to log time on
+  someone else's behalf). Editing or deleting a time entry is
+  restricted to the user who logged it — `TimeEntriesService` checks
+  `entry.user.id === callingUserId` and throws a 403 otherwise, a
+  narrower-than-usual write permission model since `projects:write`
+  alone isn't sufficient to touch someone else's log.
+
+All three share one permission set (`projects:read`/`write`/`delete`),
+same granularity as every other business module.
+
+### A routing bug, caught and fixed before it shipped
+
+`ProjectsController` owns `GET/PATCH/DELETE "projects/:id"` — a
+wildcard. `TasksController` and `TimeEntriesController` sit at the
+literal sub-paths `"projects/tasks"` and `"projects/time-entries"`.
+Nest (via Express under the hood) matches routes in **registration
+order**, not by specificity, so with `ProjectsController` registered
+first in `ProjectsModule`, a request for `GET /projects/tasks` was
+being caught by `projects/:id` (with `id="tasks"`) before it ever
+reached `TasksController`, producing a 404 "Project not found". Fixed
+by registering the literal-path controllers (`TasksController`,
+`TimeEntriesController`, `ProjectsReportsController`) before
+`ProjectsController` in the module's `controllers` array — caught via
+the manual browser smoke test (an uncaught "Project not found" page
+error on `/projects/tasks`), and pinned down with a regression test in
+`projects.e2e-spec.ts` so a future sub-resource added the same way
+doesn't reintroduce it silently.
+
+### Reports
+
+`GET /projects/reports/summary` (active/total project counts, open and
+overdue task counts, total minutes logged) and `GET
+/projects/reports/tasks-by-status` (task counts grouped by status),
+powering the Projects overview's stat tiles and bar chart.
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/projects/` — an overview (stat tiles + a
+tasks-by-status bar chart reusing CRM's `StageBarChart`), a Projects
+list page, a Tasks page with an inline status-change dropdown per row,
+and a Time Entries page with a delete action scoped to the calling
+user's own entries. The projects list itself lives at `/projects/list`
+rather than `/projects` (the overview's route) — mirroring the same
+"entity list needs a non-root path so it doesn't collide with sibling
+routes" fix applied on the backend.

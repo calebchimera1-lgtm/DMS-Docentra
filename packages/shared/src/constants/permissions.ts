@@ -26,6 +26,9 @@ export const PERMISSIONS = {
   HR_READ: "hr:read",
   HR_WRITE: "hr:write",
   HR_DELETE: "hr:delete",
+  PROJECTS_READ: "projects:read",
+  PROJECTS_WRITE: "projects:write",
+  PROJECTS_DELETE: "projects:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -178,5 +181,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "hr",
     action: "delete",
     description: "Delete departments and employees",
+  },
+  {
+    key: PERMISSIONS.PROJECTS_READ,
+    module: "projects",
+    action: "read",
+    description: "View projects, tasks, and logged time",
+  },
+  {
+    key: PERMISSIONS.PROJECTS_WRITE,
+    module: "projects",
+    action: "write",
+    description: "Create and edit projects, tasks, and time entries",
+  },
+  {
+    key: PERMISSIONS.PROJECTS_DELETE,
+    module: "projects",
+    action: "delete",
+    description: "Delete projects, tasks, and time entries",
   },
 ];

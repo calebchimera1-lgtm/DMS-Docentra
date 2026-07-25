@@ -402,3 +402,63 @@ export interface DepartmentHeadcount {
   departmentName: string;
   employeeCount: number;
 }
+
+export interface ProjectUserRef {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
+export type ProjectStatus = "PLANNING" | "ACTIVE" | "ON_HOLD" | "COMPLETED" | "CANCELLED";
+
+export interface Project {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  status: ProjectStatus;
+  startDate: string | null;
+  endDate: string | null;
+  budgetCents: number | null;
+  currency: string;
+  account: { id: string; name: string } | null;
+  owner: ProjectUserRef | null;
+}
+
+export type TaskStatus = "TODO" | "IN_PROGRESS" | "IN_REVIEW" | "DONE";
+export type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+
+export interface ProjectTask {
+  id: string;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  dueDate: string | null;
+  estimatedMinutes: number | null;
+  project: { id: string; name: string; code: string };
+  assignee: ProjectUserRef | null;
+}
+
+export interface TimeEntry {
+  id: string;
+  minutes: number;
+  entryDate: string;
+  note: string | null;
+  billable: boolean;
+  task: { id: string; title: string; project: { id: string; name: string; code: string } };
+  user: ProjectUserRef;
+}
+
+export interface ProjectsSummary {
+  activeProjectCount: number;
+  totalProjectCount: number;
+  openTaskCount: number;
+  overdueTaskCount: number;
+  totalMinutesLogged: number;
+}
+
+export interface TasksByStatus {
+  status: TaskStatus;
+  count: number;
+}
