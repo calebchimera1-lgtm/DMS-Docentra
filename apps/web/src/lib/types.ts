@@ -462,3 +462,35 @@ export interface TasksByStatus {
   status: TaskStatus;
   count: number;
 }
+
+export type TicketStatus = "OPEN" | "IN_PROGRESS" | "WAITING_ON_CUSTOMER" | "RESOLVED" | "CLOSED";
+export type TicketPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+
+export interface Ticket {
+  id: string;
+  ticketNumber: string;
+  subject: string;
+  description: string | null;
+  status: TicketStatus;
+  priority: TicketPriority;
+  requesterEmail: string | null;
+  dueDate: string | null;
+  resolvedAt: string | null;
+  closedAt: string | null;
+  account: { id: string; name: string } | null;
+  contact: { id: string; firstName: string; lastName: string } | null;
+  assignee: { id: string; firstName: string; lastName: string } | null;
+  createdAt: string;
+}
+
+export interface SupportSummary {
+  openTicketCount: number;
+  unassignedTicketCount: number;
+  overdueTicketCount: number;
+  totalTicketCount: number;
+}
+
+export interface TicketsByStatus {
+  status: TicketStatus;
+  count: number;
+}

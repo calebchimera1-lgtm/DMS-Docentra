@@ -29,6 +29,9 @@ export const PERMISSIONS = {
   PROJECTS_READ: "projects:read",
   PROJECTS_WRITE: "projects:write",
   PROJECTS_DELETE: "projects:delete",
+  SUPPORT_READ: "support:read",
+  SUPPORT_WRITE: "support:write",
+  SUPPORT_DELETE: "support:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -199,5 +202,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "projects",
     action: "delete",
     description: "Delete projects, tasks, and time entries",
+  },
+  {
+    key: PERMISSIONS.SUPPORT_READ,
+    module: "support",
+    action: "read",
+    description: "View support tickets",
+  },
+  {
+    key: PERMISSIONS.SUPPORT_WRITE,
+    module: "support",
+    action: "write",
+    description: "Create and edit support tickets",
+  },
+  {
+    key: PERMISSIONS.SUPPORT_DELETE,
+    module: "support",
+    action: "delete",
+    description: "Delete support tickets",
   },
 ];

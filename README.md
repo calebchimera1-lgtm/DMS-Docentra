@@ -125,6 +125,13 @@ Built and reviewed one at a time, in this order:
             user who logged them. Full CRUD + GraphQL, task-status
             reports, CSV export, RBAC, audit logging. See
             [docs/api](docs/api/README.md#projects-milestone-7f--sixth-business-module).
+      - [x] **Support** — helpdesk tickets with an
+            assign/resolve/close/reopen workflow, reusing the generic
+            Comments/Attachments system from Milestone 7a for replies
+            and files instead of duplicating it. Full CRUD + GraphQL,
+            open/unassigned/overdue reports, CSV export, RBAC, audit
+            logging. See
+            [docs/api](docs/api/README.md#support-milestone-7g--seventh-business-module).
       - [ ] The rest.
 
 ## Getting started (local development)

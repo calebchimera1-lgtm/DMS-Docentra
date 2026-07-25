@@ -29,6 +29,7 @@ import { PluginsModule } from "./modules/plugins/plugins.module";
 import { ProjectsModule } from "./modules/projects/projects.module";
 import { RolesModule } from "./modules/roles/roles.module";
 import { SalesModule } from "./modules/sales/sales.module";
+import { SupportModule } from "./modules/support/support.module";
 import { UsersModule } from "./modules/users/users.module";
 import { JobsModule } from "./jobs/jobs.module";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -76,6 +77,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
     AccountingModule,
     HrModule,
     ProjectsModule,
+    SupportModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },

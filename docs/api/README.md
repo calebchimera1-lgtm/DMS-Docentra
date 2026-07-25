@@ -765,3 +765,82 @@ user's own entries. The projects list itself lives at `/projects/list`
 rather than `/projects` (the overview's route) — mirroring the same
 "entity list needs a non-root path so it doesn't collide with sibling
 routes" fix applied on the backend.
+
+## Support (Milestone 7g — seventh business module)
+
+Source: `apps/api/src/modules/support/` (`tickets/`, `reports/`).
+
+Helpdesk tickets — the first business module with only one real data
+model. Replies and file attachments deliberately don't get their own
+`TicketComment`/`TicketAttachment` tables: they reuse the generic
+`Comment`/`Attachment` models (already polymorphic via
+`entityType`/`entityId`, introduced in Milestone 7a for CRM) with
+`entityType: "Ticket"`. Building a parallel comment/attachment system
+for one more entity would have been pure duplication — the generic
+version already does everything a ticket reply needs.
+
+### Entities
+
+- **Tickets** (`tickets`) — `ticketNumber` (auto-generated, same
+  `formatDocumentNumber` convention as every other document number in
+  the app), `status`
+  (`OPEN`/`IN_PROGRESS`/`WAITING_ON_CUSTOMER`/`RESOLVED`/`CLOSED`),
+  `priority` (`LOW`/`MEDIUM`/`HIGH`/`URGENT`), an optional link to a
+  `CrmAccount` and/or `CrmContact` (for tickets raised by an existing
+  customer), a free-text `requesterEmail` (for tickets that aren't
+  tied to a CRM contact at all), and an optional assignee. Creating a
+  ticket with an assignee already set skips `OPEN` and starts it
+  `IN_PROGRESS` directly, the same shortcut `assign` applies when
+  called later.
+
+### Workflow
+
+Four actions beyond plain CRUD, each guarding its own preconditions
+the same way Accounting's journal-entry `post` and HR's leave-request
+`approve`/`reject` do:
+
+- `POST /support/tickets/:id/assign` — sets the assignee; if the
+  ticket was still `OPEN`, moves it to `IN_PROGRESS` in the same call
+  (an assigned-but-still-technically-unstarted ticket would be a
+  confusing state to leave visible on a queue view).
+- `POST /support/tickets/:id/resolve` — only from an open-ish status
+  (`OPEN`/`IN_PROGRESS`/`WAITING_ON_CUSTOMER`); stamps `resolvedAt`.
+- `POST /support/tickets/:id/close` — from any non-`CLOSED` status
+  (closing doesn't require having resolved it first — some tickets get
+  closed as "won't fix" or duplicate); stamps `closedAt`.
+- `POST /support/tickets/:id/reopen` — only from `RESOLVED` or
+  `CLOSED`; clears both `resolvedAt` and `closedAt`.
+
+All under one permission set (`support:read`/`write`/`delete`).
+
+### Avoiding the Projects routing bug by construction
+
+Milestone 7f's Projects module hit a real routing collision: a
+wildcard `GET "projects/:id"` on the module's own base controller
+shadowed literal sibling routes like `"projects/tasks"` because
+Nest/Express match in registration order (see
+[above](#a-routing-bug-caught-and-fixed-before-it-shipped)). Support
+has only one entity, so `TicketsController` sits at `"support/tickets"`
+and `SupportReportsController` at `"support/reports"` — two sibling
+literal prefixes under `"support"`, with **no** controller claiming
+the bare `"support"` root and its `:id` wildcard. There's nothing for
+a wildcard to shadow, by construction, not by controller-ordering
+discipline.
+
+### Reports
+
+`GET /support/reports/summary` (open/unassigned/overdue/total ticket
+counts) and `GET /support/reports/tickets-by-status` (ticket counts
+grouped by status), powering the Support overview's stat tiles and bar
+chart. "Overdue" and "unassigned" both scope to open-ish tickets only
+— a resolved ticket past its due date isn't overdue, it's done.
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/support/` — an overview (stat tiles + a
+tickets-by-status bar chart), a Tickets list page, and a ticket detail
+page (`/support/tickets/[id]`) with Resolve/Close/Reopen actions and
+the same `CommentsPanel`/`AttachmentsPanel` components already built
+for the CRM account detail page in Milestone 7a — imported directly
+from `components/crm/`, unchanged, since they only need an
+`entityType`/`entityId` pair and were never actually CRM-specific.
