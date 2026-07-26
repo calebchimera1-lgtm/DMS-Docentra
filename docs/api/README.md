@@ -922,3 +922,64 @@ page, and a Purchase Orders page that reuses Sales'
 click-to-expand row (the same pattern Accounting's Journal Entries
 page uses for its lines) and per-row Send/Confirm/Receive buttons that
 only appear for the status they apply to.
+
+## Payroll (Milestone 7i — ninth business module)
+
+Source: `apps/api/src/modules/payroll/` (`salary-components/`,
+`pay-runs/`, `payslips/`).
+
+Salary components, pay runs, and generated payslips — payroll built
+directly on top of HR rather than beside it: `Employee.salaryCents`
+(already on the schema since Milestone 7e) is the only source of an
+employee's basic pay. There's no separate "employee salary structure"
+model duplicating what HR already owns.
+
+### Entities
+
+- **Salary components** (`salary_components`) — the reusable catalog
+  of pay codes (e.g. "Housing Allowance", "Income Tax") applied to
+  every eligible employee when a pay run is generated. `value` is
+  cents for `FIXED`, or basis points of the employee's basic salary
+  for `PERCENTAGE` (`1000` = 10.00%) — the same integer-only, no-float
+  discipline the schema already applies to money and stock quantities
+  everywhere else.
+- **Pay runs** (`pay_runs`) — a payroll period:
+  `DRAFT → PROCESSED → PAID`, or `CANCELLED` from `DRAFT` or
+  `PROCESSED`. Editable via plain `PATCH` only while `DRAFT`.
+- **Payslips** (`payslips`) — one per employee per pay run, created
+  only by the `generate` action, never directly (there's no `POST
+  /payroll/payslips`). `items` is a JSON snapshot of the components
+  applied at generation time, the same "never drift if the catalog
+  changes later" convention as Sales' Quote/SalesOrder/Invoice line
+  items.
+
+### Generating: read-only computation, one real side effect
+
+`POST /payroll/pay-runs/:id/generate` only works on a `DRAFT` run, and
+computes a payslip for every `ACTIVE` employee with `salaryCents` set:
+for each active `SalaryComponent`, `FIXED` adds/subtracts a flat cents
+amount and `PERCENTAGE` adds/subtracts `round(basicSalaryCents *
+value / 10000)`, then `grossPayCents = basic + earnings`,
+`netPayCents = gross - deductions`. All payslips for the run are
+created in one transaction alongside the run's `DRAFT → PROCESSED`
+transition — the same "real side effect, so it's a dedicated action
+rather than a plain status update" reasoning as PurchaseOrder's
+`receive`. `POST /payroll/pay-runs/:id/mark-paid` then flips the run
+and every one of its payslips to `PAID` in a second transaction,
+stamping `paidAt`.
+
+### Reports
+
+`GET /payroll/reports/summary` (employees eligible for payroll, draft
+and processed-but-unpaid run counts, and total net pay paid
+all-time) and `GET /payroll/reports/payslips-by-status`, powering the
+Payroll overview's stat tiles and bar chart.
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/payroll/` — an overview, a Salary
+Components page (with a single dollar/percent input scaled by 100 for
+both `FIXED` and `PERCENTAGE`, since both are "value the user types
+times 100"), and a Pay Runs page with a click-to-expand row showing
+each generated payslip's basic/gross/deductions/net breakdown, and
+per-row Generate/Mark paid/Cancel actions gated by the run's status.

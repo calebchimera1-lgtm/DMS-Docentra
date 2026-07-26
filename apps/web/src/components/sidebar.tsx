@@ -12,6 +12,7 @@ import {
   ShoppingCart,
   UsersRound,
   Users2,
+  Wallet,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -34,6 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Projects", href: "/projects", icon: FolderKanban },
   { label: "Support", href: "/support", icon: LifeBuoy },
   { label: "Purchase", href: "/purchase", icon: ShoppingBag },
+  { label: "Payroll", href: "/payroll", icon: Wallet },
 ];
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {

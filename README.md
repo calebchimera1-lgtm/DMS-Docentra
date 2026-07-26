@@ -140,6 +140,13 @@ Built and reviewed one at a time, in this order:
             GraphQL, committed-spend reports, CSV export, RBAC, audit
             logging. See
             [docs/api](docs/api/README.md#purchase-milestone-7h--eighth-business-module).
+      - [x] **Payroll** — a salary component catalog (earnings/
+            deductions, fixed or percentage-based), pay runs with a
+            `generate` action that computes every eligible employee's
+            payslip from HR's existing salary data, and a `mark-paid`
+            action. Full CRUD + GraphQL, payslip-status reports, CSV
+            export, RBAC, audit logging. See
+            [docs/api](docs/api/README.md#payroll-milestone-7i--ninth-business-module).
       - [ ] The rest.
 
 ## Getting started (local development)

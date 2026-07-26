@@ -532,3 +532,62 @@ export interface PurchaseOrdersByStatus {
   status: PurchaseOrderStatus;
   count: number;
 }
+
+export type SalaryComponentType = "EARNING" | "DEDUCTION";
+export type CalculationType = "FIXED" | "PERCENTAGE";
+
+export interface SalaryComponent {
+  id: string;
+  name: string;
+  code: string;
+  type: SalaryComponentType;
+  calculationType: CalculationType;
+  value: number;
+  isActive: boolean;
+}
+
+export type PayRunStatus = "DRAFT" | "PROCESSED" | "PAID" | "CANCELLED";
+
+export interface PayRun {
+  id: string;
+  periodStart: string;
+  periodEnd: string;
+  paymentDate: string | null;
+  status: PayRunStatus;
+  payslipCount: number;
+  createdAt: string;
+}
+
+export type PayslipStatus = "PENDING" | "PAID";
+
+export interface PayslipComponentLine {
+  componentId?: string;
+  name: string;
+  type: SalaryComponentType;
+  amountCents: number;
+}
+
+export interface Payslip {
+  id: string;
+  basicSalaryCents: number;
+  grossPayCents: number;
+  deductionsCents: number;
+  netPayCents: number;
+  currency: string;
+  status: PayslipStatus;
+  items?: PayslipComponentLine[];
+  employee: { id: string; employeeNumber: string; firstName: string; lastName: string };
+  payRun: { id: string; periodStart: string; periodEnd: string; status: PayRunStatus };
+}
+
+export interface PayrollSummary {
+  eligibleEmployeeCount: number;
+  draftPayRunCount: number;
+  processedPayRunCount: number;
+  totalNetPayPaidCents: number;
+}
+
+export interface PayslipsByStatus {
+  status: PayslipStatus;
+  count: number;
+}

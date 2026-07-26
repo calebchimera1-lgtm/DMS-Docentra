@@ -24,6 +24,7 @@ import { HealthModule } from "./modules/health/health.module";
 import { HrModule } from "./modules/hr/hr.module";
 import { InventoryModule } from "./modules/inventory/inventory.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
+import { PayrollModule } from "./modules/payroll/payroll.module";
 import { PermissionsModule } from "./modules/permissions/permissions.module";
 import { PluginsModule } from "./modules/plugins/plugins.module";
 import { ProjectsModule } from "./modules/projects/projects.module";
@@ -80,6 +81,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
     ProjectsModule,
     SupportModule,
     PurchaseModule,
+    PayrollModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },

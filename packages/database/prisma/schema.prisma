@@ -230,6 +230,9 @@ model Company {
   suppliers      Supplier[]
   purchaseOrders PurchaseOrder[]
   goodsReceipts  GoodsReceipt[]
+  salaryComponents SalaryComponent[]
+  payRuns          PayRun[]
+  payslips         Payslip[]
 
   @@index([status])
   @@map("companies")
@@ -318,6 +321,7 @@ model User {
   assignedTickets        Ticket[]      @relation("TicketAssignee")
   createdPurchaseOrders  PurchaseOrder[] @relation("PurchaseOrderCreatedBy")
   receivedGoodsReceipts  GoodsReceipt[]  @relation("GoodsReceiptReceivedBy")
+  createdPayRuns         PayRun[]        @relation("PayRunCreatedBy")
 
   @@index([companyId, status])
   @@map("users")
@@ -1079,6 +1083,7 @@ model Employee {
   managedDepartments    Department[]   @relation("DepartmentManager")
   leaveRequests         LeaveRequest[] @relation("LeaveRequester")
   approvedLeaveRequests LeaveRequest[] @relation("LeaveApprover")
+  payslips              Payslip[]
 
   @@unique([companyId, employeeNumber])
   @@index([companyId, deletedAt, status])
@@ -1360,4 +1365,107 @@ model GoodsReceipt {
 
   @@unique([companyId, receiptNumber])
   @@map("goods_receipts")
+}
+
+// ---------------------------------------------------------------------------
+// Payroll (Milestone 7i — ninth business module)
+// ---------------------------------------------------------------------------
+
+enum SalaryComponentType {
+  EARNING
+  DEDUCTION
+}
+
+enum CalculationType {
+  FIXED
+  PERCENTAGE
+}
+
+enum PayRunStatus {
+  DRAFT
+  PROCESSED
+  PAID
+  CANCELLED
+}
+
+enum PayslipStatus {
+  PENDING
+  PAID
+}
+
+/// A reusable pay code (e.g. "Housing Allowance", "Income Tax") applied to
+/// every eligible employee when a PayRun is generated. `value` is cents for
+/// FIXED, or basis points (1/100 of a percent — 1000 = 10.00%) of the
+/// employee's basic salary for PERCENTAGE, the same integer-only discipline
+/// the schema already applies to money and stock quantities elsewhere.
+model SalaryComponent {
+  id              String              @id @default(uuid())
+  companyId       String              @map("company_id")
+  name            String
+  code            String
+  type            SalaryComponentType
+  calculationType CalculationType     @default(FIXED) @map("calculation_type")
+  value           Int
+  isActive        Boolean             @default(true) @map("is_active")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  deletedAt       DateTime?           @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt])
+  @@map("salary_components")
+}
+
+/// A payroll period. Generating it (see Payslip) is a dedicated action, not
+/// a plain status update — same reasoning as PurchaseOrder's `receive`: it
+/// has a real side effect, computing and creating every employee's payslip.
+model PayRun {
+  id          String       @id @default(uuid())
+  companyId   String       @map("company_id")
+  createdById String?      @map("created_by_id")
+  periodStart DateTime     @map("period_start")
+  periodEnd   DateTime     @map("period_end")
+  paymentDate DateTime?    @map("payment_date")
+  status      PayRunStatus @default(DRAFT)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation("PayRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  payslips  Payslip[]
+
+  @@index([companyId, deletedAt, status])
+  @@map("pay_runs")
+}
+
+/// One employee's computed pay for a PayRun — generated, not hand-entered.
+/// `items` is a JSON snapshot of the SalaryComponents applied at generation
+/// time, the same "never drift if the catalog changes later" convention
+/// Sales applies to Quote/SalesOrder/Invoice line items.
+model Payslip {
+  id               String        @id @default(uuid())
+  companyId        String        @map("company_id")
+  payRunId         String        @map("pay_run_id")
+  employeeId       String        @map("employee_id")
+  basicSalaryCents Int           @map("basic_salary_cents")
+  grossPayCents    Int           @map("gross_pay_cents")
+  deductionsCents  Int           @map("deductions_cents")
+  netPayCents      Int           @map("net_pay_cents")
+  currency         String        @default("USD")
+  items            Json
+  status           PayslipStatus @default(PENDING)
+  paidAt           DateTime?     @map("paid_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payRun   PayRun   @relation(fields: [payRunId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([payRunId, employeeId])
+  @@index([companyId, employeeId])
+  @@map("payslips")
 }

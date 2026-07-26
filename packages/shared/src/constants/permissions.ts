@@ -35,6 +35,9 @@ export const PERMISSIONS = {
   PURCHASE_READ: "purchase:read",
   PURCHASE_WRITE: "purchase:write",
   PURCHASE_DELETE: "purchase:delete",
+  PAYROLL_READ: "payroll:read",
+  PAYROLL_WRITE: "payroll:write",
+  PAYROLL_DELETE: "payroll:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -241,5 +244,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "purchase",
     action: "delete",
     description: "Delete suppliers and draft purchase orders",
+  },
+  {
+    key: PERMISSIONS.PAYROLL_READ,
+    module: "payroll",
+    action: "read",
+    description: "View salary components, pay runs, and payslips",
+  },
+  {
+    key: PERMISSIONS.PAYROLL_WRITE,
+    module: "payroll",
+    action: "write",
+    description: "Manage salary components and process pay runs",
+  },
+  {
+    key: PERMISSIONS.PAYROLL_DELETE,
+    module: "payroll",
+    action: "delete",
+    description: "Delete salary components and draft pay runs",
   },
 ];
