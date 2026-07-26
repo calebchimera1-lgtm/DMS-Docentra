@@ -919,3 +919,29 @@ export interface PosSalesByPaymentMethod {
   count: number;
   totalCents: number;
 }
+
+export type AttendanceStatus = "PRESENT" | "LATE" | "HALF_DAY" | "ABSENT" | "ON_LEAVE";
+
+export interface AttendanceRecord {
+  id: string;
+  date: string;
+  clockInAt: string | null;
+  clockOutAt: string | null;
+  status: AttendanceStatus;
+  workedMinutes: number | null;
+  note: string | null;
+  employee: { id: string; employeeNumber: string; firstName: string; lastName: string };
+}
+
+export interface AttendanceSummary {
+  presentCount: number;
+  lateCount: number;
+  absentCount: number;
+  onLeaveCount: number;
+  activeEmployeeCount: number;
+}
+
+export interface AttendanceByStatus {
+  status: AttendanceStatus;
+  count: number;
+}

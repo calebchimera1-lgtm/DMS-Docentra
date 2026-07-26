@@ -1438,3 +1438,61 @@ picker building a local cart, a checkout panel with live change-due
 calculation, and a close-register panel showing the reconciliation
 result), and a Sales page (history list with per-row Void/Refund
 reason-input panels, mirroring Contracts' inline-panel pattern).
+
+## Attendance (Milestone 7p — sixteenth business module)
+
+Source: `apps/api/src/modules/attendance/`.
+
+One row per `Employee` per calendar day. Unlike every prior module,
+its two reports are deliberately day-scoped (today only) rather than
+all-time — the operationally relevant question for attendance is
+"who's in right now," not a running total.
+
+### Entities
+
+- **Attendance records** (`attendance_records`) — a `date`, optional
+  `clockInAt`/`clockOutAt`, a `status`
+  (`PRESENT`/`LATE`/`HALF_DAY`/`ABSENT`/`ON_LEAVE`), and
+  `workedMinutes` once clocked out. Unique per
+  `(employeeId, date)` — there is exactly one record per employee per
+  day, upserted into by both `clock-in` and `mark`.
+
+### Workflow: clock in, clock out, and mark
+
+- `POST /attendance/clock-in` (`{ employeeId }`) — upserts today's
+  record and stamps `clockInAt`, auto-detecting `LATE` against a
+  fixed cutoff hour (the same "hardcoded business-rule constant"
+  convention as Contracts' 30-day expiring-soon window). Rejects a
+  second clock-in the same day.
+  `POST /attendance/:id/clock-out` stamps `clockOutAt` and computes
+  `workedMinutes`; rejects clocking out before clocking in, or twice.
+- `POST /attendance/mark` (`{ employeeId, date, status, note? }`) —
+  sets a day's status directly for days with no clock event (a
+  no-show, an approved leave day, a half-day), rejecting `PRESENT`/
+  `LATE` (those require an actual clock timestamp, so they can only
+  be reached through `clock-in`). Upserts the same
+  `(employeeId, date)` row `clock-in` would, so correcting a mark by
+  re-marking the same day (e.g. `ABSENT` → `ON_LEAVE`) works, and
+  marking clears any stale `clockInAt`/`clockOutAt`/`workedMinutes`.
+
+`AttendanceModule` registers `AttendanceReportsController`
+(`attendance/reports/*`, 3 path segments) before `AttendanceController`
+(whose `attendance/:id` is a 2-segment wildcard) — belt-and-suspenders,
+the same reasoning as Contracts' reports controller, since a
+3-segment path can never actually collide with a 2-segment wildcard.
+
+### Reports
+
+`GET /attendance/reports/summary` (today's present/late/absent/
+on-leave counts, plus the active employee count) and
+`GET /attendance/reports/by-status` (today's count per
+`AttendanceStatus`).
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/attendance/` — a single combined page
+(no subnav, since Attendance is a lean single-resource module like
+Contracts) with today's stat tiles, a by-status bar chart, a clock-in
+form, a mark-absence/leave/half-day form, and a list with a per-row
+Clock out button for any record that's clocked in but not yet clocked
+out.

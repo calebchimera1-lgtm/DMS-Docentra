@@ -16,6 +16,7 @@ import { StorageModule } from "./common/storage/storage.module";
 import { AccountingModule } from "./modules/accounting/accounting.module";
 import { AssetsModule } from "./modules/assets/assets.module";
 import { AttachmentsModule } from "./modules/attachments/attachments.module";
+import { AttendanceModule } from "./modules/attendance/attendance.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { BranchesModule } from "./modules/branches/branches.module";
 import { CommentsModule } from "./modules/comments/comments.module";
@@ -94,6 +95,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
     ContractsModule,
     ManufacturingModule,
     PosModule,
+    AttendanceModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },

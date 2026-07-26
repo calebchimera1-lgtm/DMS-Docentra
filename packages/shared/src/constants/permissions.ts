@@ -56,6 +56,9 @@ export const PERMISSIONS = {
   POS_READ: "pos:read",
   POS_WRITE: "pos:write",
   POS_DELETE: "pos:delete",
+  ATTENDANCE_READ: "attendance:read",
+  ATTENDANCE_WRITE: "attendance:write",
+  ATTENDANCE_DELETE: "attendance:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -388,5 +391,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "pos",
     action: "delete",
     description: "Delete an open register session that has no sales recorded against it",
+  },
+  {
+    key: PERMISSIONS.ATTENDANCE_READ,
+    module: "attendance",
+    action: "read",
+    description: "View attendance records",
+  },
+  {
+    key: PERMISSIONS.ATTENDANCE_WRITE,
+    module: "attendance",
+    action: "write",
+    description: "Clock employees in and out, and mark absence or leave days",
+  },
+  {
+    key: PERMISSIONS.ATTENDANCE_DELETE,
+    module: "attendance",
+    action: "delete",
+    description: "Delete an attendance record",
   },
 ];

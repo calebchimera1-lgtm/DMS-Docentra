@@ -6,6 +6,7 @@ import {
   Banknote,
   Boxes,
   Building2,
+  CalendarCheck,
   FileSignature,
   FolderKanban,
   LayoutDashboard,
@@ -48,6 +49,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Contracts", href: "/contracts", icon: FileSignature },
   { label: "Manufacturing", href: "/manufacturing", icon: Wrench },
   { label: "Point of Sale", href: "/pos", icon: Store },
+  { label: "Attendance", href: "/attendance", icon: CalendarCheck },
 ];
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {

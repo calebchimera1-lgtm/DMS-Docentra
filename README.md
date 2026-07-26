@@ -196,6 +196,14 @@ Built and reviewed one at a time, in this order:
             summary/by-payment-method reports, CSV export, RBAC, audit
             logging. See
             [docs/api](docs/api/README.md#point-of-sale-milestone-7o--fifteenth-business-module).
+      - [x] **Attendance** — one record per employee per day, with a
+            `clock-in`/`clock-out` pair that auto-detects lateness and
+            computes minutes worked, plus a `mark` action for
+            no-clock-event days (absence, leave, half-day). Reports
+            are deliberately day-scoped (today only) rather than
+            all-time. Full CRUD + GraphQL, summary/by-status reports,
+            CSV export, RBAC, audit logging. See
+            [docs/api](docs/api/README.md#attendance-milestone-7p--sixteenth-business-module).
       - [ ] The rest.
 
 ## Getting started (local development)

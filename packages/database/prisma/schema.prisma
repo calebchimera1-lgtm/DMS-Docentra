@@ -250,6 +250,7 @@ model Company {
   workOrders        WorkOrder[]
   posRegisterSessions PosRegisterSession[]
   posSales            PosSale[]
+  attendanceRecords   AttendanceRecord[]
 
   @@index([status])
   @@map("companies")
@@ -1127,6 +1128,7 @@ model Employee {
   approvedExpenseClaims ExpenseClaim[] @relation("ExpenseApprover")
   interviewsAsInterviewer Interview[]  @relation("InterviewInterviewer")
   hiredFromApplication  Application?
+  attendanceRecords     AttendanceRecord[]
 
   @@unique([companyId, employeeNumber])
   @@index([companyId, deletedAt, status])
@@ -2089,4 +2091,45 @@ model PosSale {
   @@index([companyId, deletedAt, status])
   @@index([sessionId])
   @@map("pos_sales")
+}
+
+// ---------------------------------------------------------------------------
+// Attendance (Milestone 7p — sixteenth business module)
+// ---------------------------------------------------------------------------
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  HALF_DAY
+  ABSENT
+  ON_LEAVE
+}
+
+/// One row per Employee per calendar day. `clockIn` upserts today's row and
+/// stamps clockInAt, auto-detecting LATE against a fixed cutoff (the same
+/// "hardcoded business-rule constant" convention as Contracts' 30-day
+/// expiring-soon window); `clockOut` stamps clockOutAt and computes
+/// workedMinutes. Days without a clock event (a no-show, an approved leave
+/// day) are set directly via `mark` rather than forced through clockIn/Out.
+model AttendanceRecord {
+  id            String           @id @default(uuid())
+  companyId     String           @map("company_id")
+  employeeId    String           @map("employee_id")
+  date          DateTime         @map("date")
+  clockInAt     DateTime?        @map("clock_in_at")
+  clockOutAt    DateTime?        @map("clock_out_at")
+  status        AttendanceStatus @default(PRESENT)
+  workedMinutes Int?             @map("worked_minutes")
+  note          String?
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  deletedAt     DateTime?        @map("deleted_at")
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, date])
+  @@index([companyId, deletedAt, status])
+  @@index([companyId, date])
+  @@map("attendance_records")
 }
