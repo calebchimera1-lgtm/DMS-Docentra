@@ -1155,3 +1155,70 @@ inline per-row Dispose panel with date/proceeds/cash-account/
 gain-loss-account inputs), and a Depreciation Runs page with a
 click-to-expand row showing each posted line's amount and running
 accumulated total, mirroring Payroll's Pay Runs page.
+
+## Recruitment (Milestone 7l — twelfth business module)
+
+Source: `apps/api/src/modules/recruitment/` (`job-postings/`,
+`candidates/`, `applications/`, `interviews/`).
+
+Job postings, candidates, and an application pipeline
+(`APPLIED → SCREENING → INTERVIEWING → OFFERED → HIRED`, with
+`REJECTED`/`WITHDRAWN` reachable from any non-terminal state) that
+ends in a real cross-module conversion: hiring an application creates
+an actual HR `Employee` record.
+
+### Entities
+
+- **Job postings** (`job_postings`) — `OPEN → CLOSED`, reopenable.
+  Optionally tied to an HR `Department`.
+- **Candidates** (`candidates`) — a simple contact record (name,
+  email, phone, resume URL, source). Not unique on email — the same
+  person can be represented by more than one record if entered twice,
+  same as CRM's contacts.
+- **Applications** (`applications`) — a `Candidate`'s application to a
+  `JobPosting`, unique per (posting, candidate) pair. Each pipeline
+  step (`screen`, `interview`, `offer`, `reject`, `withdraw`, `hire`)
+  is a dedicated action validating the application is in the correct
+  prior state, rather than a free-form status `PATCH`.
+- **Interviews** (`interviews`) — scheduled rounds against an
+  Application (`SCHEDULED → COMPLETED`, or `CANCELLED`), each with an
+  optional HR `Employee` interviewer, a stage label, and
+  feedback/rating captured on completion.
+
+### Hiring: a real cross-module conversion
+
+`POST /recruitment/applications/:id/hire` (`OFFERED` only) is a
+dedicated action with a real side effect — creating an HR `Employee`
+record — the same precedent as Purchase's `receive()` and Payroll's
+`generate()`. It's written via a direct `tx.employee.create` call
+inside a transaction rather than injecting `HrModule`'s service, the
+same cross-module `tx.*` convention Purchase uses for Inventory. The
+new employee's name/email/phone come from the `Candidate`; job title
+and employment type default to the `JobPosting`'s (overridable in the
+request body); department defaults to the posting's department. The
+application is stamped `HIRED` with `hiredEmployeeId` pointing at the
+new employee — a second `hire` call on the same application is
+rejected with a 400, since it's no longer `OFFERED`.
+
+`RecruitmentModule`'s controllers all sit under literal sub-paths
+(`job-postings`, `candidates`, `applications`, `interviews`,
+`reports`) — no controller claims the bare `recruitment` root, so the
+Projects `:id`-wildcard-shadowing bug class is avoided by
+construction, same as every module since.
+
+### Reports
+
+`GET /recruitment/reports/summary` (open posting count, active
+application count, scheduled interview count, and hired-all-time
+count) and `GET /recruitment/reports/applications-by-status`.
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/recruitment/` — an overview (stat tiles
+plus an applications-by-status bar chart), a Job Postings page (create
+form plus per-row Close/Reopen), a Candidates page, and an Applications
+page with a click-to-expand row showing notes/rejection reason/hired-
+employee reference and that application's scheduled interviews,
+per-row pipeline action buttons (Screen/Move to interviewing/Offer),
+and inline Reject (reason input) and Hire (date/salary/department
+inputs) panels.

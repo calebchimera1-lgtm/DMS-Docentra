@@ -164,6 +164,13 @@ Built and reviewed one at a time, in this order:
             summary/by-category reports, CSV export, RBAC, audit
             logging. See
             [docs/api](docs/api/README.md#assets-milestone-7k--eleventh-business-module).
+      - [x] **Recruitment** — job postings, candidates, and an
+            application pipeline (`APPLIED → SCREENING →
+            INTERVIEWING → OFFERED → HIRED`) with scheduled
+            interviews, ending in a `hire` action that creates a real
+            HR `Employee` record. Full CRUD + GraphQL, pipeline
+            reports, CSV export, RBAC, audit logging. See
+            [docs/api](docs/api/README.md#recruitment-milestone-7l--twelfth-business-module).
       - [ ] The rest.
 
 ## Getting started (local development)

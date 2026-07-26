@@ -239,6 +239,10 @@ model Company {
   assets            Asset[]
   depreciationRuns  DepreciationRun[]
   depreciationLines DepreciationLine[]
+  jobPostings       JobPosting[]
+  candidates        Candidate[]
+  applications      Application[]
+  interviews        Interview[]
 
   @@index([status])
   @@map("companies")
@@ -1054,9 +1058,10 @@ model Department {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  manager   Employee?  @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
-  employees Employee[] @relation("EmployeeDepartment")
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  manager     Employee?    @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
+  employees   Employee[]   @relation("EmployeeDepartment")
+  jobPostings JobPosting[]
 
   @@unique([companyId, code])
   @@index([companyId, deletedAt])
@@ -1100,6 +1105,8 @@ model Employee {
   payslips              Payslip[]
   expenseClaims         ExpenseClaim[] @relation("ExpenseClaimant")
   approvedExpenseClaims ExpenseClaim[] @relation("ExpenseApprover")
+  interviewsAsInterviewer Interview[]  @relation("InterviewInterviewer")
+  hiredFromApplication  Application?
 
   @@unique([companyId, employeeNumber])
   @@index([companyId, deletedAt, status])
@@ -1690,4 +1697,131 @@ model DepreciationLine {
   @@unique([depreciationRunId, assetId])
   @@index([companyId, assetId])
   @@map("depreciation_lines")
+}
+
+// ---------------------------------------------------------------------------
+// Recruitment (Milestone 7l — twelfth business module)
+// ---------------------------------------------------------------------------
+
+enum JobPostingStatus {
+  OPEN
+  ON_HOLD
+  CLOSED
+}
+
+enum ApplicationStatus {
+  APPLIED
+  SCREENING
+  INTERVIEWING
+  OFFERED
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+model JobPosting {
+  id             String           @id @default(uuid())
+  companyId      String           @map("company_id")
+  departmentId   String?          @map("department_id")
+  title          String
+  description    String?
+  employmentType EmploymentType   @default(FULL_TIME) @map("employment_type")
+  openings       Int              @default(1)
+  status         JobPostingStatus @default(OPEN)
+  postedAt       DateTime         @default(now()) @map("posted_at")
+  closedAt       DateTime?        @map("closed_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  deletedAt      DateTime?        @map("deleted_at")
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department   Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  applications Application[]
+
+  @@index([companyId, deletedAt, status])
+  @@map("job_postings")
+}
+
+model Candidate {
+  id        String    @id @default(uuid())
+  companyId String    @map("company_id")
+  firstName String    @map("first_name")
+  lastName  String    @map("last_name")
+  email     String
+  phone     String?
+  resumeUrl String?   @map("resume_url")
+  source    String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  applications Application[]
+
+  @@index([companyId, deletedAt])
+  @@index([companyId, email])
+  @@map("candidates")
+}
+
+/// A Candidate's application to a JobPosting, moving through the pipeline
+/// APPLIED -> SCREENING -> INTERVIEWING -> OFFERED -> HIRED, or REJECTED/
+/// WITHDRAWN at any point before HIRED. `hire` is a dedicated action (not a
+/// plain status update) since it has a real side effect: creating an HR
+/// Employee record via a direct tx.employee.create call — the same
+/// cross-module tx.* convention Purchase's receive() uses for Inventory,
+/// rather than injecting HrModule's services.
+model Application {
+  id              String            @id @default(uuid())
+  companyId       String            @map("company_id")
+  jobPostingId    String            @map("job_posting_id")
+  candidateId     String            @map("candidate_id")
+  status          ApplicationStatus @default(APPLIED)
+  appliedAt       DateTime          @default(now()) @map("applied_at")
+  notes           String?
+  rejectionReason String?           @map("rejection_reason")
+  hiredEmployeeId String?           @unique @map("hired_employee_id")
+  reviewedAt      DateTime?         @map("reviewed_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  deletedAt       DateTime?         @map("deleted_at")
+
+  company       Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  jobPosting    JobPosting  @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  candidate     Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  hiredEmployee Employee?   @relation(fields: [hiredEmployeeId], references: [id], onDelete: SetNull)
+  interviews    Interview[]
+
+  @@unique([jobPostingId, candidateId])
+  @@index([companyId, deletedAt, status])
+  @@map("applications")
+}
+
+/// A scheduled interview round for an Application. `interviewerId` is
+/// optional since an interview can be scheduled before an interviewer is
+/// assigned.
+model Interview {
+  id             String          @id @default(uuid())
+  companyId      String          @map("company_id")
+  applicationId  String          @map("application_id")
+  interviewerId  String?         @map("interviewer_id")
+  stage          String
+  scheduledAt    DateTime        @map("scheduled_at")
+  status         InterviewStatus @default(SCHEDULED)
+  feedback       String?
+  rating         Int?
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  application Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  interviewer Employee?    @relation("InterviewInterviewer", fields: [interviewerId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, applicationId])
+  @@map("interviews")
 }

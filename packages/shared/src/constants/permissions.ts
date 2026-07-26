@@ -44,6 +44,9 @@ export const PERMISSIONS = {
   ASSETS_READ: "assets:read",
   ASSETS_WRITE: "assets:write",
   ASSETS_DELETE: "assets:delete",
+  RECRUITMENT_READ: "recruitment:read",
+  RECRUITMENT_WRITE: "recruitment:write",
+  RECRUITMENT_DELETE: "recruitment:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -304,5 +307,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "assets",
     action: "delete",
     description: "Delete asset categories and never-depreciated assets",
+  },
+  {
+    key: PERMISSIONS.RECRUITMENT_READ,
+    module: "recruitment",
+    action: "read",
+    description: "View job postings, candidates, applications, and interviews",
+  },
+  {
+    key: PERMISSIONS.RECRUITMENT_WRITE,
+    module: "recruitment",
+    action: "write",
+    description: "Create and edit job postings and candidates, and manage the application pipeline",
+  },
+  {
+    key: PERMISSIONS.RECRUITMENT_DELETE,
+    module: "recruitment",
+    action: "delete",
+    description: "Delete job postings and candidates",
   },
 ];

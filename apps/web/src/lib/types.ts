@@ -708,3 +708,76 @@ export interface AssetsByCategory {
   assetCount: number;
   netBookValueCents: number;
 }
+
+export type JobPostingStatus = "OPEN" | "ON_HOLD" | "CLOSED";
+
+export interface JobPosting {
+  id: string;
+  title: string;
+  description: string | null;
+  employmentType: EmploymentType;
+  openings: number;
+  status: JobPostingStatus;
+  department?: { id: string; name: string; code: string } | null;
+  _count: { applications: number };
+}
+
+export interface Candidate {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  resumeUrl: string | null;
+  source: string | null;
+}
+
+export type ApplicationStatus =
+  | "APPLIED"
+  | "SCREENING"
+  | "INTERVIEWING"
+  | "OFFERED"
+  | "HIRED"
+  | "REJECTED"
+  | "WITHDRAWN";
+
+export interface Application {
+  id: string;
+  status: ApplicationStatus;
+  appliedAt: string;
+  notes: string | null;
+  rejectionReason: string | null;
+  hiredEmployeeId: string | null;
+  jobPosting: { id: string; title: string; status: JobPostingStatus };
+  candidate: { id: string; firstName: string; lastName: string; email: string };
+  hiredEmployee?: { id: string; employeeNumber: string } | null;
+}
+
+export type InterviewStatus = "SCHEDULED" | "COMPLETED" | "CANCELLED";
+
+export interface Interview {
+  id: string;
+  stage: string;
+  scheduledAt: string;
+  status: InterviewStatus;
+  feedback: string | null;
+  rating: number | null;
+  application: {
+    id: string;
+    candidate: { id: string; firstName: string; lastName: string };
+    jobPosting: { id: string; title: string };
+  };
+  interviewer?: { id: string; employeeNumber: string; firstName: string; lastName: string } | null;
+}
+
+export interface RecruitmentSummary {
+  openPostingCount: number;
+  activeApplicationCount: number;
+  scheduledInterviewCount: number;
+  hiredCount: number;
+}
+
+export interface ApplicationsByStatus {
+  status: ApplicationStatus;
+  count: number;
+}

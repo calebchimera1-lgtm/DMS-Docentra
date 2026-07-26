@@ -31,6 +31,7 @@ import { PermissionsModule } from "./modules/permissions/permissions.module";
 import { PluginsModule } from "./modules/plugins/plugins.module";
 import { ProjectsModule } from "./modules/projects/projects.module";
 import { PurchaseModule } from "./modules/purchase/purchase.module";
+import { RecruitmentModule } from "./modules/recruitment/recruitment.module";
 import { RolesModule } from "./modules/roles/roles.module";
 import { SalesModule } from "./modules/sales/sales.module";
 import { SupportModule } from "./modules/support/support.module";
@@ -86,6 +87,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
     PayrollModule,
     ExpensesModule,
     AssetsModule,
+    RecruitmentModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },
