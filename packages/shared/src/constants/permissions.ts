@@ -47,6 +47,9 @@ export const PERMISSIONS = {
   RECRUITMENT_READ: "recruitment:read",
   RECRUITMENT_WRITE: "recruitment:write",
   RECRUITMENT_DELETE: "recruitment:delete",
+  CONTRACTS_READ: "contracts:read",
+  CONTRACTS_WRITE: "contracts:write",
+  CONTRACTS_DELETE: "contracts:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -325,5 +328,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "recruitment",
     action: "delete",
     description: "Delete job postings and candidates",
+  },
+  {
+    key: PERMISSIONS.CONTRACTS_READ,
+    module: "contracts",
+    action: "read",
+    description: "View contracts",
+  },
+  {
+    key: PERMISSIONS.CONTRACTS_WRITE,
+    module: "contracts",
+    action: "write",
+    description: "Create and edit contracts, and manage their lifecycle",
+  },
+  {
+    key: PERMISSIONS.CONTRACTS_DELETE,
+    module: "contracts",
+    action: "delete",
+    description: "Delete draft contracts",
   },
 ];

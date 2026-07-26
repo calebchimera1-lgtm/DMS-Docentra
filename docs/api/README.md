@@ -1222,3 +1222,71 @@ employee reference and that application's scheduled interviews,
 per-row pipeline action buttons (Screen/Move to interviewing/Offer),
 and inline Reject (reason input) and Hire (date/salary/department
 inputs) panels.
+
+## Contracts (Milestone 7m — thirteenth business module)
+
+Source: `apps/api/src/modules/contracts/`.
+
+A single-resource module: contracts with a counterparty (a CRM
+`Account`), moving `DRAFT → ACTIVE → EXPIRED` or `TERMINATED`, or
+`RENEWED` via a dedicated action that creates a linked successor
+contract rather than mutating the original's dates.
+
+### Entities
+
+- **Contracts** (`contracts`) — `contractNumber` (`CON-000001`-style,
+  via the shared `formatDocumentNumber` util), a type
+  (`SALES`/`PURCHASE`/`SERVICE`/`EMPLOYMENT`/`NDA`/`OTHER`), an
+  optional counterparty `Account` and `owner` (defaults to the
+  creating user), value/currency, a start/end date range, and an
+  `autoRenew`/`renewalTermMonths` hint pair. Only a `DRAFT` contract
+  can be edited or deleted.
+
+### Workflow: activate, terminate, expire, renew
+
+- `POST /contracts/:id/activate` — `DRAFT → ACTIVE`.
+- `POST /contracts/:id/terminate` — `ACTIVE → TERMINATED`, requires a
+  `terminationReason` (1-500 chars), stamps `terminatedAt`.
+- `POST /contracts/:id/expire` — `ACTIVE → EXPIRED`.
+- `POST /contracts/:id/renew` — `ACTIVE` only; validates the new
+  `endDate` is after the current contract's `endDate`. Rather than
+  mutating the expiring contract's dates in place, it creates a new
+  successor `Contract` inside a transaction (`parentContractId`
+  pointing back at the original; `startDate` = the original's
+  `endDate`; `valueCents` defaults to the original's unless
+  overridden) and flips the original to a terminal `RENEWED` status.
+  This is the same "conversion creates a new linked record" precedent
+  as CRM's lead conversion and Recruitment's `hire()`. The 1:1
+  self-relation is enforced by `parentContractId`'s `@unique`
+  constraint, so each contract has at most one direct successor,
+  readable from either side (`parentContract` /
+  `renewedAsContract`).
+
+Comments and attachments are reused directly from the generic
+polymorphic system (`entityType: "Contract"`) — no module-specific
+code was needed for either.
+
+`ContractsModule` registers `ContractsReportsController`
+(`contracts/reports/*`, 3 path segments) before `ContractsController`
+(whose `contracts/:id` is a 2-segment wildcard). A 3-segment path can
+never actually collide with a 2-segment wildcard regardless of
+registration order, but the ordering still follows the same
+literal-before-wildcard discipline established after the Projects
+routing bug, as belt-and-suspenders.
+
+### Reports
+
+`GET /contracts/reports/summary` (draft count, active count, count
+expiring within 30 days, total active value) and
+`GET /contracts/reports/by-status` (a count per `ContractStatus`).
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/contracts/` — a single combined page (no
+subnav, since Contracts is a lean single-resource module) with stat
+tiles, a contracts-by-status bar chart, search/status filtering, a
+collapsible create form, and a list linking into a detail page
+(`contracts/[id]`) with status-gated action buttons (Activate; or
+Renew/Terminate/Mark expired while active), inline confirm panels for
+renew and terminate, and the shared `CommentsPanel`/`AttachmentsPanel`
+components.

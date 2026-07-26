@@ -243,6 +243,7 @@ model Company {
   candidates        Candidate[]
   applications      Application[]
   interviews        Interview[]
+  contracts         Contract[]
 
   @@index([status])
   @@map("companies")
@@ -333,6 +334,7 @@ model User {
   receivedGoodsReceipts  GoodsReceipt[]  @relation("GoodsReceiptReceivedBy")
   createdPayRuns         PayRun[]        @relation("PayRunCreatedBy")
   createdDepreciationRuns DepreciationRun[] @relation("DepreciationRunCreatedBy")
+  ownedContracts          Contract[]
 
   @@index([companyId, status])
   @@map("users")
@@ -646,6 +648,7 @@ model CrmAccount {
   invoices    Invoice[]
   projects    Project[]
   tickets     Ticket[]
+  contracts   Contract[]
 
   @@index([companyId, deletedAt])
   @@map("crm_accounts")
@@ -1824,4 +1827,67 @@ model Interview {
 
   @@index([companyId, applicationId])
   @@map("interviews")
+}
+
+// ---------------------------------------------------------------------------
+// Contracts (Milestone 7m — thirteenth business module)
+// ---------------------------------------------------------------------------
+
+enum ContractType {
+  SALES
+  PURCHASE
+  SERVICE
+  EMPLOYMENT
+  NDA
+  OTHER
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+  RENEWED
+}
+
+/// A contract with a counterparty (CrmAccount), moving DRAFT -> ACTIVE ->
+/// EXPIRED or TERMINATED, or RENEWED — a dedicated `renew` action creates a
+/// successor Contract (parentContractId points back at this one) rather
+/// than mutating dates in place, the same "conversion creates a new linked
+/// record" precedent as CRM's lead conversion and Recruitment's hire.
+/// Comments/Attachments are reused via the generic polymorphic system
+/// (entityType "Contract"), not duplicated.
+model Contract {
+  id                String         @id @default(uuid())
+  companyId         String         @map("company_id")
+  contractNumber    String         @map("contract_number")
+  title             String
+  type              ContractType   @default(SERVICE)
+  accountId         String?        @map("account_id")
+  ownerId           String?        @map("owner_id")
+  status            ContractStatus @default(DRAFT)
+  valueCents        Int            @default(0) @map("value_cents")
+  currency          String         @default("USD")
+  startDate         DateTime       @map("start_date")
+  endDate           DateTime       @map("end_date")
+  autoRenew         Boolean        @default(false) @map("auto_renew")
+  renewalTermMonths Int?           @map("renewal_term_months")
+  terminatedAt      DateTime?      @map("terminated_at")
+  terminationReason String?        @map("termination_reason")
+  parentContractId  String?        @unique @map("parent_contract_id")
+  note              String?
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+  deletedAt         DateTime?      @map("deleted_at")
+
+  company           Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account           CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  owner             User?      @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  parentContract    Contract?  @relation("ContractRenewal", fields: [parentContractId], references: [id], onDelete: SetNull)
+  renewedAsContract Contract?  @relation("ContractRenewal")
+
+  @@unique([companyId, contractNumber])
+  @@index([companyId, deletedAt, status])
+  @@index([accountId])
+  @@map("contracts")
 }

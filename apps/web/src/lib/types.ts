@@ -781,3 +781,39 @@ export interface ApplicationsByStatus {
   status: ApplicationStatus;
   count: number;
 }
+
+export type ContractType = "SALES" | "PURCHASE" | "SERVICE" | "EMPLOYMENT" | "NDA" | "OTHER";
+export type ContractStatus = "DRAFT" | "ACTIVE" | "EXPIRED" | "TERMINATED" | "RENEWED";
+
+export interface Contract {
+  id: string;
+  contractNumber: string;
+  title: string;
+  type: ContractType;
+  valueCents: number;
+  currency: string;
+  startDate: string;
+  endDate: string;
+  status: ContractStatus;
+  autoRenew: boolean;
+  renewalTermMonths: number | null;
+  terminatedAt: string | null;
+  terminationReason: string | null;
+  note: string | null;
+  account?: { id: string; name: string } | null;
+  owner?: { id: string; firstName: string; lastName: string } | null;
+  parentContract?: { id: string; contractNumber: string } | null;
+  renewedAsContract?: { id: string; contractNumber: string } | null;
+}
+
+export interface ContractsSummary {
+  draftCount: number;
+  activeCount: number;
+  expiringSoonCount: number;
+  totalActiveValueCents: number;
+}
+
+export interface ContractsByStatus {
+  status: ContractStatus;
+  count: number;
+}

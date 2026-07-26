@@ -19,6 +19,7 @@ import { AttachmentsModule } from "./modules/attachments/attachments.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { BranchesModule } from "./modules/branches/branches.module";
 import { CommentsModule } from "./modules/comments/comments.module";
+import { ContractsModule } from "./modules/contracts/contracts.module";
 import { CrmModule } from "./modules/crm/crm.module";
 import { DashboardModule } from "./modules/dashboard/dashboard.module";
 import { ExpensesModule } from "./modules/expenses/expenses.module";
@@ -88,6 +89,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
     ExpensesModule,
     AssetsModule,
     RecruitmentModule,
+    ContractsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },

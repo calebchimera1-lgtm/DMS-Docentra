@@ -171,6 +171,14 @@ Built and reviewed one at a time, in this order:
             HR `Employee` record. Full CRUD + GraphQL, pipeline
             reports, CSV export, RBAC, audit logging. See
             [docs/api](docs/api/README.md#recruitment-milestone-7l--twelfth-business-module).
+      - [x] **Contracts** — contracts with a counterparty (CRM
+            account) moving `DRAFT → ACTIVE → EXPIRED`/`TERMINATED`,
+            plus a `renew` action that creates a linked successor
+            contract (rather than mutating dates in place) and marks
+            the original `RENEWED`. Full CRUD + GraphQL,
+            summary/by-status reports, CSV export, RBAC, audit
+            logging. See
+            [docs/api](docs/api/README.md#contracts-milestone-7m--thirteenth-business-module).
       - [ ] The rest.
 
 ## Getting started (local development)
