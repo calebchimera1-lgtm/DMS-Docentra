@@ -188,6 +188,14 @@ Built and reviewed one at a time, in this order:
             Full CRUD + GraphQL, summary/by-status reports, CSV
             export, RBAC, audit logging. See
             [docs/api](docs/api/README.md#manufacturing-milestone-7n--fourteenth-business-module).
+      - [x] **Point of Sale** — register sessions (one open per
+            warehouse at a time) and sales that deduct stock
+            immediately with no draft stage, plus `void`/`refund`
+            actions that restock, and a `close` action that reconciles
+            counted cash against expected cash. Full CRUD + GraphQL,
+            summary/by-payment-method reports, CSV export, RBAC, audit
+            logging. See
+            [docs/api](docs/api/README.md#point-of-sale-milestone-7o--fifteenth-business-module).
       - [ ] The rest.
 
 ## Getting started (local development)

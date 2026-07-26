@@ -13,6 +13,7 @@ import {
   Receipt,
   ShoppingBag,
   ShoppingCart,
+  Store,
   UserSearch,
   UsersRound,
   Users2,
@@ -46,6 +47,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Recruitment", href: "/recruitment", icon: UserSearch },
   { label: "Contracts", href: "/contracts", icon: FileSignature },
   { label: "Manufacturing", href: "/manufacturing", icon: Wrench },
+  { label: "Point of Sale", href: "/pos", icon: Store },
 ];
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {

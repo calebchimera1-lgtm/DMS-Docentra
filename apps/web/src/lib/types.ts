@@ -867,3 +867,55 @@ export interface WorkOrdersByStatus {
   status: WorkOrderStatus;
   count: number;
 }
+
+export type PosSessionStatus = "OPEN" | "CLOSED";
+
+export interface PosSession {
+  id: string;
+  sessionNumber: string;
+  status: PosSessionStatus;
+  openingFloatCents: number;
+  expectedCashCents: number | null;
+  countedCashCents: number | null;
+  cashDifferenceCents: number | null;
+  openedAt: string;
+  closedAt: string | null;
+  warehouse: { id: string; name: string; code: string };
+  openedBy?: { id: string; firstName: string; lastName: string } | null;
+  closedBy?: { id: string; firstName: string; lastName: string } | null;
+  _count?: { sales: number };
+}
+
+export type PosSaleStatus = "COMPLETED" | "VOIDED" | "REFUNDED";
+
+export interface PosSale {
+  id: string;
+  saleNumber: string;
+  items: LineItem[];
+  subtotalCents: number;
+  totalCents: number;
+  currency: string;
+  paymentMethod: PaymentMethod;
+  amountTenderedCents: number | null;
+  changeDueCents: number | null;
+  status: PosSaleStatus;
+  voidReason: string | null;
+  refundReason: string | null;
+  createdAt: string;
+  session: { id: string; sessionNumber: string; status?: PosSessionStatus };
+  account?: { id: string; name: string } | null;
+}
+
+export interface PosSummary {
+  openSessionCount: number;
+  completedSaleCount: number;
+  voidedCount: number;
+  refundedCount: number;
+  totalSalesValueCents: number;
+}
+
+export interface PosSalesByPaymentMethod {
+  paymentMethod: PaymentMethod;
+  count: number;
+  totalCents: number;
+}

@@ -53,6 +53,9 @@ export const PERMISSIONS = {
   MANUFACTURING_READ: "manufacturing:read",
   MANUFACTURING_WRITE: "manufacturing:write",
   MANUFACTURING_DELETE: "manufacturing:delete",
+  POS_READ: "pos:read",
+  POS_WRITE: "pos:write",
+  POS_DELETE: "pos:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -367,5 +370,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "manufacturing",
     action: "delete",
     description: "Delete draft bills of material and work orders",
+  },
+  {
+    key: PERMISSIONS.POS_READ,
+    module: "pos",
+    action: "read",
+    description: "View register sessions and sales",
+  },
+  {
+    key: PERMISSIONS.POS_WRITE,
+    module: "pos",
+    action: "write",
+    description: "Open and close register sessions, ring up sales, and void or refund them",
+  },
+  {
+    key: PERMISSIONS.POS_DELETE,
+    module: "pos",
+    action: "delete",
+    description: "Delete an open register session that has no sales recorded against it",
   },
 ];

@@ -1365,3 +1365,76 @@ a click-to-expand row showing each line's component and quantity), and
 a Work Orders page (create form plus per-row Start/Cancel while draft
 or Complete while in progress, mirroring Recruitment's Job Postings
 per-row action-button pattern).
+
+## Point of Sale (Milestone 7o — fifteenth business module)
+
+Source: `apps/api/src/modules/pos/` (`sessions/`, `sales/`).
+
+Register sessions and the sales rung up against them. Unlike every
+other document in this codebase, a `PosSale` has no draft stage —
+ringing one up deducts stock immediately — and a session's `close`
+introduces the standard till-reconciliation workflow (counted cash vs.
+expected cash).
+
+### Entities
+
+- **Register sessions** (`pos_register_sessions`) — a cashier's shift
+  at a warehouse: `sessionNumber` (`REG-000001`-style), an opening
+  cash float, `OPEN → CLOSED`. Only one `OPEN` session is allowed per
+  warehouse at a time.
+- **Sales** (`pos_sales`) — `saleNumber` (`POS-000001`-style), a JSON
+  line-item snapshot (the same `LineItemDto`/`priceLineItems` shared
+  utility Sales and Purchase use), a `paymentMethod` (the existing
+  `PaymentMethod` enum, reused as-is rather than duplicated — "how
+  money changed hands" is genuinely the same concept whether it's
+  Accounting settling an invoice or a register sale), and for `CASH`
+  sales an `amountTenderedCents`/`changeDueCents` pair.
+  `COMPLETED → VOIDED` or `REFUNDED`.
+
+### Workflow: ring up, void, refund, and reconcile
+
+- `POST /pos/sales` (open session only) — transactionally deducts
+  each line item's component stock at the session's warehouse, the
+  same "Insufficient stock" guard and `StockMovement`-posting
+  convention every stock-moving action in this codebase follows,
+  posting the existing `SALE` type. A `CASH` sale requires
+  `amountTenderedCents` to be at least the total; change due is
+  computed and stored.
+- `POST /pos/sales/:id/void` (`COMPLETED`, and only while its session
+  is still `OPEN`) and `POST /pos/sales/:id/refund` (`COMPLETED`,
+  any time) both restock the items via the existing `RETURN` type —
+  two distinct real-world reasons a sale unwinds (an immediate
+  same-shift correction vs. a later customer return), the same
+  "multiple terminal outcomes from one active state" shape as
+  Contracts' `terminate`/`expire`.
+- `POST /pos/sessions/:id/close` — counts the drawer. Expected cash is
+  the opening float plus every still-`COMPLETED` cash sale in the
+  session (a voided or refunded sale no longer counts, since the cash
+  that came in when it was rung up was handed back out); the
+  difference against counted cash is stored on the session for
+  reporting.
+
+No new `StockMovementType` values were needed — `SALE` and `RETURN`
+already existed and fit exactly.
+
+`PosModule`'s controllers all sit under literal sub-paths (`sessions`,
+`sales`, `reports`) — no controller claims the bare `pos` root, so the
+Projects `:id`-wildcard-shadowing bug class is avoided by
+construction, same as every module since.
+
+### Reports
+
+`GET /pos/reports/summary` (open session count, completed/voided/
+refunded sale counts, total completed sales value) and
+`GET /pos/reports/by-payment-method` (completed sale count and value
+per `PaymentMethod`).
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/pos/` — an overview (stat tiles plus a
+by-payment-method bar chart), a Register page (the actual checkout
+screen: open-session form when none is active, otherwise a product
+picker building a local cart, a checkout panel with live change-due
+calculation, and a close-register panel showing the reconciliation
+result), and a Sales page (history list with per-row Void/Refund
+reason-input panels, mirroring Contracts' inline-panel pattern).

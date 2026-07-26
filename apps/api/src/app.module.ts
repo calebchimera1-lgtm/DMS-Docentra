@@ -31,6 +31,7 @@ import { NotificationsModule } from "./modules/notifications/notifications.modul
 import { PayrollModule } from "./modules/payroll/payroll.module";
 import { PermissionsModule } from "./modules/permissions/permissions.module";
 import { PluginsModule } from "./modules/plugins/plugins.module";
+import { PosModule } from "./modules/pos/pos.module";
 import { ProjectsModule } from "./modules/projects/projects.module";
 import { PurchaseModule } from "./modules/purchase/purchase.module";
 import { RecruitmentModule } from "./modules/recruitment/recruitment.module";
@@ -92,6 +93,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
     RecruitmentModule,
     ContractsModule,
     ManufacturingModule,
+    PosModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },

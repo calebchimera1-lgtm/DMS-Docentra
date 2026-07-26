@@ -248,6 +248,8 @@ model Company {
   contracts         Contract[]
   billsOfMaterial   BillOfMaterial[]
   workOrders        WorkOrder[]
+  posRegisterSessions PosRegisterSession[]
+  posSales            PosSale[]
 
   @@index([status])
   @@map("companies")
@@ -340,6 +342,9 @@ model User {
   createdDepreciationRuns DepreciationRun[] @relation("DepreciationRunCreatedBy")
   ownedContracts          Contract[]
   createdWorkOrders       WorkOrder[] @relation("WorkOrderCreatedBy")
+  openedPosSessions       PosRegisterSession[] @relation("PosSessionOpenedBy")
+  closedPosSessions       PosRegisterSession[] @relation("PosSessionClosedBy")
+  posSales                PosSale[]            @relation("PosSaleSoldBy")
 
   @@index([companyId, status])
   @@map("users")
@@ -654,6 +659,7 @@ model CrmAccount {
   projects    Project[]
   tickets     Ticket[]
   contracts   Contract[]
+  posSales    PosSale[]
 
   @@index([companyId, deletedAt])
   @@map("crm_accounts")
@@ -887,6 +893,8 @@ model Warehouse {
   purchaseOrders PurchaseOrder[]
   goodsReceipts  GoodsReceipt[]
   workOrders     WorkOrder[]
+  posRegisterSessions PosRegisterSession[]
+  posSales            PosSale[]
 
   @@unique([companyId, code])
   @@index([companyId, deletedAt])
@@ -1986,4 +1994,99 @@ model WorkOrder {
   @@unique([companyId, workOrderNumber])
   @@index([companyId, deletedAt, status])
   @@map("work_orders")
+}
+
+// ---------------------------------------------------------------------------
+// Point of Sale (Milestone 7o — fifteenth business module)
+// ---------------------------------------------------------------------------
+
+enum PosSessionStatus {
+  OPEN
+  CLOSED
+}
+
+enum PosSaleStatus {
+  COMPLETED
+  VOIDED
+  REFUNDED
+}
+
+/// A cashier's shift at a register: opened with a starting cash float,
+/// accumulates PosSales while OPEN, and is closed by counting the drawer —
+/// `expectedCashCents` (opening float + cash sales - cash refunds/voids) is
+/// compared against `countedCashCents` to produce `cashDifferenceCents`, the
+/// standard till-reconciliation workflow.
+model PosRegisterSession {
+  id                  String           @id @default(uuid())
+  companyId           String           @map("company_id")
+  sessionNumber       String           @map("session_number")
+  warehouseId         String           @map("warehouse_id")
+  status              PosSessionStatus @default(OPEN)
+  openingFloatCents   Int              @default(0) @map("opening_float_cents")
+  expectedCashCents   Int?             @map("expected_cash_cents")
+  countedCashCents    Int?             @map("counted_cash_cents")
+  cashDifferenceCents Int?             @map("cash_difference_cents")
+  openedById          String?          @map("opened_by_id")
+  closedById          String?          @map("closed_by_id")
+  openedAt            DateTime         @default(now()) @map("opened_at")
+  closedAt            DateTime?        @map("closed_at")
+  note                String?
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+  deletedAt           DateTime?        @map("deleted_at")
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  openedBy  User?     @relation("PosSessionOpenedBy", fields: [openedById], references: [id], onDelete: SetNull)
+  closedBy  User?     @relation("PosSessionClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
+  sales     PosSale[]
+
+  @@unique([companyId, sessionNumber])
+  @@index([companyId, deletedAt, status])
+  @@index([warehouseId])
+  @@map("pos_register_sessions")
+}
+
+/// A completed register sale — stock is deducted immediately at creation
+/// (there is no draft stage, unlike Sales' Quote -> Order -> Invoice), the
+/// same "reuse Inventory's own movement-recording logic" convention every
+/// stock-moving action in this codebase follows, posting the existing SALE
+/// StockMovementType. `void` (same session still open) and `refund` (any
+/// time after) both restock via the existing RETURN type — two distinct
+/// real-world reasons a sale unwinds, the same "multiple terminal outcomes
+/// from one active state" shape as Contracts' terminate/expire.
+model PosSale {
+  id                  String        @id @default(uuid())
+  companyId           String        @map("company_id")
+  saleNumber          String        @map("sale_number")
+  sessionId           String        @map("session_id")
+  warehouseId         String        @map("warehouse_id")
+  accountId           String?       @map("account_id")
+  soldById            String?       @map("sold_by_id")
+  items               Json
+  subtotalCents       Int           @default(0) @map("subtotal_cents")
+  totalCents          Int           @default(0) @map("total_cents")
+  currency            String        @default("USD")
+  paymentMethod       PaymentMethod @default(CASH)
+  amountTenderedCents Int?          @map("amount_tendered_cents")
+  changeDueCents      Int?          @map("change_due_cents")
+  status              PosSaleStatus @default(COMPLETED)
+  voidedAt            DateTime?     @map("voided_at")
+  voidReason          String?       @map("void_reason")
+  refundedAt          DateTime?     @map("refunded_at")
+  refundReason        String?       @map("refund_reason")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+  deletedAt           DateTime?     @map("deleted_at")
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  session   PosRegisterSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  warehouse Warehouse          @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  account   CrmAccount?        @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  soldBy    User?              @relation("PosSaleSoldBy", fields: [soldById], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, saleNumber])
+  @@index([companyId, deletedAt, status])
+  @@index([sessionId])
+  @@map("pos_sales")
 }
