@@ -26,6 +26,7 @@ import { ExpensesModule } from "./modules/expenses/expenses.module";
 import { HealthModule } from "./modules/health/health.module";
 import { HrModule } from "./modules/hr/hr.module";
 import { InventoryModule } from "./modules/inventory/inventory.module";
+import { ManufacturingModule } from "./modules/manufacturing/manufacturing.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { PayrollModule } from "./modules/payroll/payroll.module";
 import { PermissionsModule } from "./modules/permissions/permissions.module";
@@ -90,6 +91,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
     AssetsModule,
     RecruitmentModule,
     ContractsModule,
+    ManufacturingModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },

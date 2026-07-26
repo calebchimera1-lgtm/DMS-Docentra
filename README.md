@@ -179,6 +179,15 @@ Built and reviewed one at a time, in this order:
             summary/by-status reports, CSV export, RBAC, audit
             logging. See
             [docs/api](docs/api/README.md#contracts-milestone-7m--thirteenth-business-module).
+      - [x] **Manufacturing** — bills of material (a finished product
+            plus component lines) and work orders that `start`
+            (transactionally consuming component stock, with the same
+            insufficient-stock guard Inventory's manual movements use)
+            and `complete` (posting the finished-good yield), closing
+            the loop with Inventory via two new `StockMovement` types.
+            Full CRUD + GraphQL, summary/by-status reports, CSV
+            export, RBAC, audit logging. See
+            [docs/api](docs/api/README.md#manufacturing-milestone-7n--fourteenth-business-module).
       - [ ] The rest.
 
 ## Getting started (local development)

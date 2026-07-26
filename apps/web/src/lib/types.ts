@@ -817,3 +817,53 @@ export interface ContractsByStatus {
   status: ContractStatus;
   count: number;
 }
+
+export interface BomProductRef {
+  id: string;
+  sku: string;
+  name: string;
+}
+
+export interface BomLine {
+  id: string;
+  quantity: number;
+  componentProduct: BomProductRef;
+}
+
+export interface Bom {
+  id: string;
+  name: string;
+  isActive: boolean;
+  note: string | null;
+  product: BomProductRef;
+  lines: BomLine[];
+}
+
+export type WorkOrderStatus = "DRAFT" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+
+export interface WorkOrder {
+  id: string;
+  workOrderNumber: string;
+  quantity: number;
+  status: WorkOrderStatus;
+  plannedDate: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  note: string | null;
+  bom: { id: string; name: string };
+  product: BomProductRef;
+  warehouse: { id: string; name: string; code: string };
+}
+
+export interface ManufacturingSummary {
+  draftCount: number;
+  inProgressCount: number;
+  completedCount: number;
+  activeBomCount: number;
+  totalCompletedQuantity: number;
+}
+
+export interface WorkOrdersByStatus {
+  status: WorkOrderStatus;
+  count: number;
+}

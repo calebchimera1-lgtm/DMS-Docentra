@@ -1290,3 +1290,78 @@ collapsible create form, and a list linking into a detail page
 Renew/Terminate/Mark expired while active), inline confirm panels for
 renew and terminate, and the shared `CommentsPanel`/`AttachmentsPanel`
 components.
+
+## Manufacturing (Milestone 7n — fourteenth business module)
+
+Source: `apps/api/src/modules/manufacturing/` (`boms/`,
+`work-orders/`).
+
+Bills of material and the work orders that produce against them,
+closing the loop on Inventory: a work order's `start` consumes
+component stock and its `complete` produces finished-good stock, both
+posted as real `StockMovement` rows.
+
+### Entities
+
+- **Bills of material** (`bills_of_material` + `bom_lines`) — a
+  recipe: a finished-good `Product`, a name, an `isActive` flag, and
+  one or more component lines (`componentProduct` + `quantity`
+  consumed per one unit of the finished product). A product cannot be
+  a component of its own BOM. Lines are a real relational child table
+  (not a JSON snapshot, unlike Sales/Purchase line items) because a
+  BOM is a living recipe meant to be edited — `PATCH` with a `lines`
+  array fully replaces the existing lines inside a transaction, the
+  same nested-`create` pattern Accounting's `JournalEntry` uses for
+  its lines.
+- **Work orders** (`work_orders`) — `workOrderNumber` (`WO-000001`-
+  style), a reference to the `BillOfMaterial`, a denormalized
+  `productId` (copied from the BOM at creation), a target `warehouse`,
+  and a planned `quantity`. Moves `DRAFT → IN_PROGRESS → COMPLETED`,
+  or `CANCELLED` (only reachable from `DRAFT`, since nothing has been
+  consumed yet to reverse). Only a `DRAFT` work order can be edited or
+  deleted.
+
+### Workflow: start and complete
+
+- `POST /manufacturing/work-orders/:id/start` (`DRAFT` only) —
+  transactionally consumes each BOM line's component stock (that
+  line's `quantity` times the work order's own `quantity`) at the work
+  order's warehouse, posting a `PRODUCTION_CONSUME` `StockMovement`
+  per component. Reuses the exact "Insufficient stock: X on hand,
+  cannot move Y" guard Inventory's own manual movement recording uses
+  — if any component would go negative, the whole transaction rolls
+  back and no partial consumption is left behind.
+- `POST /manufacturing/work-orders/:id/complete` (`IN_PROGRESS` only)
+  — the counterpart action: posts the finished product's yield (the
+  work order's `quantity`) into the same warehouse as a
+  `PRODUCTION_YIELD` `StockMovement`, the same "reuse Inventory's own
+  movement-recording logic" convention Purchase's `receive()`
+  established.
+- `POST /manufacturing/work-orders/:id/cancel` (`DRAFT` only).
+
+`StockMovementType` gained two new values for this milestone,
+`PRODUCTION_CONSUME` and `PRODUCTION_YIELD`, so a warehouse manager can
+distinguish a stock change caused by production from one caused by a
+sale, a purchase receipt, or a manual adjustment.
+
+`ManufacturingModule`'s controllers all sit under literal sub-paths
+(`boms`, `work-orders`, `reports`) — no controller claims the bare
+`manufacturing` root, so the Projects `:id`-wildcard-shadowing bug
+class is avoided by construction, same as every module since.
+
+### Reports
+
+`GET /manufacturing/reports/summary` (draft/in-progress/completed work
+order counts, active BOM count, and total completed quantity
+all-time) and `GET /manufacturing/reports/by-status` (a count per
+`WorkOrderStatus`).
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/manufacturing/` — an overview (stat
+tiles plus a work-orders-by-status bar chart), a Bills of Material
+page (create form with a dynamic add/remove component-line editor, and
+a click-to-expand row showing each line's component and quantity), and
+a Work Orders page (create form plus per-row Start/Cancel while draft
+or Complete while in progress, mirroring Recruitment's Job Postings
+per-row action-button pattern).

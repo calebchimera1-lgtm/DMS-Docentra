@@ -17,6 +17,7 @@ import {
   UsersRound,
   Users2,
   Wallet,
+  Wrench,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -44,6 +45,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Assets", href: "/assets", icon: Building2 },
   { label: "Recruitment", href: "/recruitment", icon: UserSearch },
   { label: "Contracts", href: "/contracts", icon: FileSignature },
+  { label: "Manufacturing", href: "/manufacturing", icon: Wrench },
 ];
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {

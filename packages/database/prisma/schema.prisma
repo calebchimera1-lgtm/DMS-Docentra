@@ -127,6 +127,8 @@ enum StockMovementType {
   TRANSFER_IN
   TRANSFER_OUT
   RETURN
+  PRODUCTION_CONSUME
+  PRODUCTION_YIELD
 }
 
 enum LedgerAccountType {
@@ -244,6 +246,8 @@ model Company {
   applications      Application[]
   interviews        Interview[]
   contracts         Contract[]
+  billsOfMaterial   BillOfMaterial[]
+  workOrders        WorkOrder[]
 
   @@index([status])
   @@map("companies")
@@ -335,6 +339,7 @@ model User {
   createdPayRuns         PayRun[]        @relation("PayRunCreatedBy")
   createdDepreciationRuns DepreciationRun[] @relation("DepreciationRunCreatedBy")
   ownedContracts          Contract[]
+  createdWorkOrders       WorkOrder[] @relation("WorkOrderCreatedBy")
 
   @@index([companyId, status])
   @@map("users")
@@ -754,6 +759,9 @@ model Product {
   company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   stockItems     StockItem[]
   stockMovements StockMovement[]
+  billsOfMaterial      BillOfMaterial[] @relation("BomOutputProduct")
+  bomLinesAsComponent  BomLine[]        @relation("BomComponentProduct")
+  workOrdersAsOutput   WorkOrder[]      @relation("WorkOrderOutputProduct")
 
   @@unique([companyId, sku])
   @@index([companyId, deletedAt])
@@ -878,6 +886,7 @@ model Warehouse {
   stockMovements StockMovement[]
   purchaseOrders PurchaseOrder[]
   goodsReceipts  GoodsReceipt[]
+  workOrders     WorkOrder[]
 
   @@unique([companyId, code])
   @@index([companyId, deletedAt])
@@ -1890,4 +1899,91 @@ model Contract {
   @@index([companyId, deletedAt, status])
   @@index([accountId])
   @@map("contracts")
+}
+
+// ---------------------------------------------------------------------------
+// Manufacturing (Milestone 7n — fourteenth business module)
+// ---------------------------------------------------------------------------
+
+enum WorkOrderStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+/// A recipe: how many units of each component Product are consumed to
+/// produce one unit of a finished-good Product. A WorkOrder references a
+/// BillOfMaterial and multiplies each line's quantity by the work order's
+/// own planned quantity when consuming components at `start`.
+model BillOfMaterial {
+  id        String    @id @default(uuid())
+  companyId String    @map("company_id")
+  productId String    @map("product_id")
+  name      String
+  isActive  Boolean   @default(true) @map("is_active")
+  note      String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product    Product     @relation("BomOutputProduct", fields: [productId], references: [id], onDelete: Restrict)
+  lines      BomLine[]
+  workOrders WorkOrder[]
+
+  @@index([companyId, deletedAt])
+  @@index([productId])
+  @@map("bills_of_material")
+}
+
+model BomLine {
+  id                 String @id @default(uuid())
+  bomId              String @map("bom_id")
+  componentProductId String @map("component_product_id")
+  quantity           Int
+
+  bom              BillOfMaterial @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  componentProduct Product        @relation("BomComponentProduct", fields: [componentProductId], references: [id], onDelete: Restrict)
+
+  @@index([bomId])
+  @@index([componentProductId])
+  @@map("bom_lines")
+}
+
+/// A production run against a BillOfMaterial. `start` (DRAFT -> IN_PROGRESS)
+/// transactionally consumes each component's stock — quantity = that BOM
+/// line's quantity times this work order's own quantity — at the work
+/// order's warehouse, reusing the same "Insufficient stock" guard
+/// Inventory's own manual movements use. `complete` (IN_PROGRESS ->
+/// COMPLETED) then posts the finished-good yield into that same warehouse.
+/// Cancellation is only allowed from DRAFT, since nothing has been consumed
+/// yet to reverse.
+model WorkOrder {
+  id              String          @id @default(uuid())
+  companyId       String          @map("company_id")
+  workOrderNumber String          @map("work_order_number")
+  bomId           String          @map("bom_id")
+  productId       String          @map("product_id")
+  warehouseId     String          @map("warehouse_id")
+  quantity        Int
+  status          WorkOrderStatus @default(DRAFT)
+  plannedDate     DateTime?       @map("planned_date")
+  startedAt       DateTime?       @map("started_at")
+  completedAt     DateTime?       @map("completed_at")
+  note            String?
+  createdById     String?         @map("created_by_id")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  deletedAt       DateTime?       @map("deleted_at")
+
+  company   Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bom       BillOfMaterial @relation(fields: [bomId], references: [id], onDelete: Restrict)
+  product   Product        @relation("WorkOrderOutputProduct", fields: [productId], references: [id], onDelete: Restrict)
+  warehouse Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  createdBy User?          @relation("WorkOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, workOrderNumber])
+  @@index([companyId, deletedAt, status])
+  @@map("work_orders")
 }

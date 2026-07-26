@@ -50,6 +50,9 @@ export const PERMISSIONS = {
   CONTRACTS_READ: "contracts:read",
   CONTRACTS_WRITE: "contracts:write",
   CONTRACTS_DELETE: "contracts:delete",
+  MANUFACTURING_READ: "manufacturing:read",
+  MANUFACTURING_WRITE: "manufacturing:write",
+  MANUFACTURING_DELETE: "manufacturing:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -346,5 +349,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "contracts",
     action: "delete",
     description: "Delete draft contracts",
+  },
+  {
+    key: PERMISSIONS.MANUFACTURING_READ,
+    module: "manufacturing",
+    action: "read",
+    description: "View bills of material and work orders",
+  },
+  {
+    key: PERMISSIONS.MANUFACTURING_WRITE,
+    module: "manufacturing",
+    action: "write",
+    description: "Create and edit bills of material, and run work orders through start/complete/cancel",
+  },
+  {
+    key: PERMISSIONS.MANUFACTURING_DELETE,
+    module: "manufacturing",
+    action: "delete",
+    description: "Delete draft bills of material and work orders",
   },
 ];
