@@ -38,6 +38,9 @@ export const PERMISSIONS = {
   PAYROLL_READ: "payroll:read",
   PAYROLL_WRITE: "payroll:write",
   PAYROLL_DELETE: "payroll:delete",
+  EXPENSES_READ: "expenses:read",
+  EXPENSES_WRITE: "expenses:write",
+  EXPENSES_DELETE: "expenses:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -262,5 +265,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "payroll",
     action: "delete",
     description: "Delete salary components and draft pay runs",
+  },
+  {
+    key: PERMISSIONS.EXPENSES_READ,
+    module: "expenses",
+    action: "read",
+    description: "View expense categories and expense claims",
+  },
+  {
+    key: PERMISSIONS.EXPENSES_WRITE,
+    module: "expenses",
+    action: "write",
+    description: "Create and edit expense categories and claims, and approve, reject, or pay claims",
+  },
+  {
+    key: PERMISSIONS.EXPENSES_DELETE,
+    module: "expenses",
+    action: "delete",
+    description: "Delete expense categories and draft expense claims",
   },
 ];

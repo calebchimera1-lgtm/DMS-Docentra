@@ -591,3 +591,54 @@ export interface PayslipsByStatus {
   status: PayslipStatus;
   count: number;
 }
+
+export interface ExpenseCategory {
+  id: string;
+  name: string;
+  code: string;
+  ledgerAccountId: string | null;
+  ledgerAccount?: { id: string; code: string; name: string } | null;
+  isActive: boolean;
+}
+
+export type ExpenseClaimStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | "PAID" | "CANCELLED";
+
+export interface ExpenseClaimLine {
+  categoryId: string;
+  categoryName: string;
+  description: string;
+  amountCents: number;
+}
+
+export interface ExpenseClaim {
+  id: string;
+  claimNumber: string;
+  expenseDate: string;
+  items: ExpenseClaimLine[];
+  totalCents: number;
+  currency: string;
+  status: ExpenseClaimStatus;
+  note: string | null;
+  rejectionReason: string | null;
+  journalEntry?: { id: string; entryNumber: string } | null;
+  employee: { id: string; employeeNumber: string; firstName: string; lastName: string };
+  approvedBy?: { id: string; employeeNumber: string; firstName: string; lastName: string } | null;
+  createdAt: string;
+}
+
+export interface ExpensesSummary {
+  draftClaimCount: number;
+  submittedClaimCount: number;
+  approvedUnpaidClaimCount: number;
+  totalPaidCents: number;
+}
+
+export interface ExpenseClaimsByStatus {
+  status: ExpenseClaimStatus;
+  count: number;
+}
+
+export interface ExpensesByCategory {
+  categoryName: string;
+  totalCents: number;
+}

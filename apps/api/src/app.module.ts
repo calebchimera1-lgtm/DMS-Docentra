@@ -20,6 +20,7 @@ import { BranchesModule } from "./modules/branches/branches.module";
 import { CommentsModule } from "./modules/comments/comments.module";
 import { CrmModule } from "./modules/crm/crm.module";
 import { DashboardModule } from "./modules/dashboard/dashboard.module";
+import { ExpensesModule } from "./modules/expenses/expenses.module";
 import { HealthModule } from "./modules/health/health.module";
 import { HrModule } from "./modules/hr/hr.module";
 import { InventoryModule } from "./modules/inventory/inventory.module";
@@ -82,6 +83,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
     SupportModule,
     PurchaseModule,
     PayrollModule,
+    ExpensesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },

@@ -233,6 +233,8 @@ model Company {
   salaryComponents SalaryComponent[]
   payRuns          PayRun[]
   payslips         Payslip[]
+  expenseCategories ExpenseCategory[]
+  expenseClaims     ExpenseClaim[]
 
   @@index([status])
   @@map("companies")
@@ -941,6 +943,7 @@ model LedgerAccount {
   journalLines  JournalLine[]
   debitPayments  Payment[]     @relation("PaymentDebitAccount")
   creditPayments Payment[]     @relation("PaymentCreditAccount")
+  expenseCategories ExpenseCategory[]
 
   @@unique([companyId, code])
   @@index([companyId, deletedAt, type])
@@ -962,10 +965,11 @@ model JournalEntry {
   updatedAt   DateTime           @updatedAt @map("updated_at")
   deletedAt   DateTime?          @map("deleted_at")
 
-  company   Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  createdBy User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  lines     JournalLine[]
-  payment   Payment?
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy    User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  lines        JournalLine[]
+  payment      Payment?
+  expenseClaim ExpenseClaim?
 
   @@unique([companyId, entryNumber])
   @@index([companyId, deletedAt, status])
@@ -1084,6 +1088,8 @@ model Employee {
   leaveRequests         LeaveRequest[] @relation("LeaveRequester")
   approvedLeaveRequests LeaveRequest[] @relation("LeaveApprover")
   payslips              Payslip[]
+  expenseClaims         ExpenseClaim[] @relation("ExpenseClaimant")
+  approvedExpenseClaims ExpenseClaim[] @relation("ExpenseApprover")
 
   @@unique([companyId, employeeNumber])
   @@index([companyId, deletedAt, status])
@@ -1468,4 +1474,81 @@ model Payslip {
   @@unique([payRunId, employeeId])
   @@index([companyId, employeeId])
   @@map("payslips")
+}
+
+// ---------------------------------------------------------------------------
+// Expenses (Milestone 7j — tenth business module)
+// ---------------------------------------------------------------------------
+
+enum ExpenseClaimStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PAID
+  CANCELLED
+}
+
+/// A per-company category (Travel, Meals, Office Supplies, ...) that an
+/// expense line is classified under. Optionally mapped to the expense
+/// LedgerAccount it should debit when a claim using it is approved and
+/// posted to Accounting — left unset means claims can still be drafted
+/// and submitted, but approve() will reject posting until it's set.
+model ExpenseCategory {
+  id              String    @id @default(uuid())
+  companyId       String    @map("company_id")
+  name            String
+  code            String
+  ledgerAccountId String?   @map("ledger_account_id")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ledgerAccount LedgerAccount? @relation(fields: [ledgerAccountId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt])
+  @@map("expense_categories")
+}
+
+/// An employee's expense claim. `items` is a JSON snapshot of the
+/// categorized expense lines (same "never drift" convention as Sales'
+/// line items and Payroll's Payslip.items) — editable only while DRAFT.
+/// approve() is a dedicated action with a real side effect: it posts a
+/// balanced JournalEntry (debiting each line's category expense account,
+/// crediting the reimbursement-payable account passed by the caller),
+/// the same "receive"/"generate"/"markPaid" precedent set by Purchase and
+/// Payroll for anything beyond a plain status update.
+model ExpenseClaim {
+  id              String             @id @default(uuid())
+  companyId       String             @map("company_id")
+  employeeId      String             @map("employee_id")
+  claimNumber     String             @map("claim_number")
+  expenseDate     DateTime           @map("expense_date")
+  items           Json
+  totalCents      Int                @default(0) @map("total_cents")
+  currency        String             @default("USD")
+  status          ExpenseClaimStatus @default(DRAFT)
+  note            String?
+  submittedAt     DateTime?          @map("submitted_at")
+  approvedById    String?            @map("approved_by_id")
+  approvedAt      DateTime?          @map("approved_at")
+  rejectionReason String?            @map("rejection_reason")
+  journalEntryId  String?            @unique @map("journal_entry_id")
+  paidAt          DateTime?          @map("paid_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+  deletedAt       DateTime?          @map("deleted_at")
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee     Employee      @relation("ExpenseClaimant", fields: [employeeId], references: [id], onDelete: Restrict)
+  approvedBy   Employee?     @relation("ExpenseApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, claimNumber])
+  @@index([companyId, deletedAt, status])
+  @@index([employeeId])
+  @@map("expense_claims")
 }

@@ -147,6 +147,15 @@ Built and reviewed one at a time, in this order:
             action. Full CRUD + GraphQL, payslip-status reports, CSV
             export, RBAC, audit logging. See
             [docs/api](docs/api/README.md#payroll-milestone-7i--ninth-business-module).
+      - [x] **Expenses** — a categorized expense-claim workflow
+            (`DRAFT → SUBMITTED → APPROVED → PAID`) where approving a
+            claim posts a real, balanced double-entry `JournalEntry`
+            to Accounting — one debit line per expense category,
+            crediting the reimbursement-payable account the approver
+            picks. Full CRUD + GraphQL, claims-by-status and
+            spend-by-category reports, CSV export, RBAC, audit
+            logging. See
+            [docs/api](docs/api/README.md#expenses-milestone-7j--tenth-business-module).
       - [ ] The rest.
 
 ## Getting started (local development)

@@ -983,3 +983,82 @@ both `FIXED` and `PERCENTAGE`, since both are "value the user types
 times 100"), and a Pay Runs page with a click-to-expand row showing
 each generated payslip's basic/gross/deductions/net breakdown, and
 per-row Generate/Mark paid/Cancel actions gated by the run's status.
+
+## Expenses (Milestone 7j — tenth business module)
+
+Source: `apps/api/src/modules/expenses/` (`expense-categories/`,
+`expense-claims/`).
+
+Employee expense claims with a categorized-line-item workflow that,
+on approval, posts a real double-entry `JournalEntry` to Accounting —
+the first business module to write directly into another module's
+ledger tables via `tx.*` calls, the same cross-module convention
+Purchase's `receive()` uses for Inventory's stock movements.
+
+### Entities
+
+- **Expense categories** (`expense_categories`) — a per-company
+  catalog (Travel, Meals, Office Supplies, ...), each optionally
+  mapped to the `LedgerAccount` it should debit on approval. Left
+  unmapped, claims using that category can still be drafted and
+  submitted, but `approve` rejects with a 400 until one is set.
+- **Expense claims** (`expense_claims`) — `DRAFT → SUBMITTED →
+  APPROVED → PAID`, with `REJECTED` reachable from `SUBMITTED` and
+  `CANCELLED` from `DRAFT` or `SUBMITTED`. `items` is a JSON snapshot
+  of `{ categoryId, categoryName, description, amountCents }` lines —
+  the same "never drift if the category catalog changes later"
+  convention as Sales' line items and Payroll's `Payslip.items`.
+  Editable via `PATCH` only while `DRAFT`. `employeeId` is passed
+  explicitly by the caller at creation (not resolved from the current
+  user), the same convention HR's `LeaveRequest.create` uses.
+
+### Approving: the real accounting side effect
+
+`POST /expenses/claims/:id/approve` only works on a `SUBMITTED` claim
+and takes a `creditAccountId` (the reimbursement-payable liability
+account) in its body — mirroring how Accounting's `Payment.create`
+takes its debit/credit accounts explicitly rather than inferring them.
+It groups the claim's line items by category, sums each group's
+`amountCents`, and — inside one `$transaction` — creates a `POSTED`
+`JournalEntry` with one debit line per category (against that
+category's mapped `LedgerAccount`) and a single credit line for the
+claim's `totalCents` against the caller's `creditAccountId`, then
+stamps the claim `APPROVED` with the new entry's id. Any category
+without a mapped ledger account fails the whole approval with a 400
+naming the category, before any journal lines are written. `POST
+/expenses/claims/:id/reject` (with a required `rejectionReason`) and
+`POST /expenses/claims/:id/approve`'s approver are both resolved from
+the caller's own linked `Employee` profile, the same
+`resolveCurrentEmployee` pattern HR's leave-request approval uses.
+`POST /expenses/claims/:id/mark-paid` is a terminal status flip from
+`APPROVED` to `PAID`, stamping `paidAt` — Payroll's `markPaid`
+precedent, not a second journal entry (the payable was already
+recorded at approval).
+
+`ExpensesModule`'s controllers all sit under literal sub-paths
+(`categories`, `claims`, `reports`) — no controller claims the bare
+`expenses` root, so there's no `:id` wildcard for any sibling route to
+shadow (the Projects routing bug avoided by construction, same as
+every module since).
+
+### Reports
+
+`GET /expenses/reports/summary` (draft/submitted/approved-unpaid claim
+counts and total paid all-time), `GET
+/expenses/reports/claims-by-status`, and `GET
+/expenses/reports/spend-by-category` — the last aggregated in
+application code over each approved/paid claim's JSON line items
+rather than a SQL `groupBy`, since categories live inside that JSON
+snapshot, not a relational join table.
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/expenses/` — an overview (stat tiles
+plus claims-by-status and spend-by-category bar charts), a Categories
+page (with a ledger-account picker sourced from
+`/accounting/ledger-accounts`), and a Claims page with a dynamic
+multi-line create form (add/remove category/description/amount rows),
+a click-to-expand row showing the line-item and rejection-reason/
+journal-entry detail, and per-row Submit/Cancel, Approve (with an
+inline credit-account picker)/Reject (with an inline reason input),
+and Mark paid actions gated by the claim's status.

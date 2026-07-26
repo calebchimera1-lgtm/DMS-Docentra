@@ -8,6 +8,7 @@ import {
   FolderKanban,
   LayoutDashboard,
   LifeBuoy,
+  Receipt,
   ShoppingBag,
   ShoppingCart,
   UsersRound,
@@ -36,6 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Support", href: "/support", icon: LifeBuoy },
   { label: "Purchase", href: "/purchase", icon: ShoppingBag },
   { label: "Payroll", href: "/payroll", icon: Wallet },
+  { label: "Expenses", href: "/expenses", icon: Receipt },
 ];
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
