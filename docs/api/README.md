@@ -844,3 +844,81 @@ the same `CommentsPanel`/`AttachmentsPanel` components already built
 for the CRM account detail page in Milestone 7a — imported directly
 from `components/crm/`, unchanged, since they only need an
 `entityType`/`entityId` pair and were never actually CRM-specific.
+
+## Purchase (Milestone 7h — eighth business module)
+
+Source: `apps/api/src/modules/purchase/` (`suppliers/`, `orders/`,
+`reports/`).
+
+Suppliers, purchase orders, and goods receipts — the buy-side
+counterpart to Sales, closing the loop with Inventory. Rather than
+re-deriving patterns already proven out, this module leans hard on
+reuse: `Supplier` is a new model (kept separate from CRM's
+`CrmAccount`, the same way `LedgerAccount` was in Accounting — vendors
+and customers/prospects are different concepts even when the shape
+looks similar), but purchase order line items reuse Sales'
+`LineItemDto`/`priceLineItems`/`LineItemType` outright, and document
+numbering reuses `formatDocumentNumber`.
+
+### Entities
+
+- **Suppliers** (`suppliers`) — vendor master data: name, code (unique
+  per company), contact details, active flag. Deletion is blocked
+  while any purchase order references it.
+- **Purchase orders** (`purchase_orders`) — `DRAFT → SENT → CONFIRMED
+  → RECEIVED`, or `CANCELLED` from any pre-`RECEIVED` state. Line
+  items are a JSON snapshot exactly like Sales' Quote/SalesOrder/
+  Invoice (`unitPriceCents` here means "unit cost agreed with the
+  supplier"). A `warehouseId` is required at creation — every order
+  has a known destination before it's ever sent — and the order is
+  editable via plain `PATCH` (including direct status transitions)
+  right up until it's `RECEIVED` or `CANCELLED`, at which point it's
+  immutable, the same rule Accounting applies to posted journal
+  entries.
+- **Goods receipts** (`goods_receipts`) — created by the dedicated
+  `receive` action, never directly. One receipt per order (`purchase_order_id`
+  is unique) — the same "one conversion each" simplicity Sales applies
+  to Quote→Order→Invoice, and always a full receipt of every line, not
+  a partial one.
+
+### Receiving: the real cross-module integration point
+
+`POST /purchase/orders/:id/receive` only works on a `CONFIRMED` order
+with no existing receipt, and runs one transaction that, for every
+line item with a `productId`: upserts the `StockItem` for
+`(productId, warehouseId)` and bumps `quantityOnHand`, then inserts a
+`StockMovement` of type `RECEIPT` referencing the order number — the
+exact upsert-then-movement sequence Inventory's own
+`MovementsService.create` uses, reimplemented here rather than having
+Purchase call into Inventory's NestJS service directly (the same
+direct-`tx`-call convention already used for Accounting's
+invoice-marking-paid and CRM's lead conversion, keeping modules
+decoupled at the service layer while still sharing one Prisma
+transaction). Only then does it create the `GoodsReceipt` record and
+flip the order to `RECEIVED`.
+
+### Avoiding the Projects routing bug, again
+
+Like Support, neither `SuppliersController` (`purchase/suppliers`)
+nor `PurchaseOrdersController` (`purchase/orders`) claims the bare
+`purchase` root — both are literal sibling sub-paths, so there's no
+`:id` wildcard for either to shadow the other, or the reports
+controller's `purchase/reports/*` routes. Same collision-avoidance-by-
+construction as Support, now applied on reflex rather than as a fix.
+
+### Reports
+
+`GET /purchase/reports/summary` (active supplier count, open order
+count, committed spend — the total value of `CONFIRMED`-but-not-yet-
+received orders — and received order count) and `GET
+/purchase/reports/orders-by-status`, powering the Purchase overview's
+stat tiles and bar chart.
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/purchase/` — an overview, a Suppliers
+page, and a Purchase Orders page that reuses Sales'
+`LineItemsEditor` component outright for the create form, plus a
+click-to-expand row (the same pattern Accounting's Journal Entries
+page uses for its lines) and per-row Send/Confirm/Receive buttons that
+only appear for the status they apply to.

@@ -227,6 +227,9 @@ model Company {
   projectTasks   ProjectTask[]
   timeEntries    TimeEntry[]
   tickets        Ticket[]
+  suppliers      Supplier[]
+  purchaseOrders PurchaseOrder[]
+  goodsReceipts  GoodsReceipt[]
 
   @@index([status])
   @@map("companies")
@@ -313,6 +316,8 @@ model User {
   assignedTasks          ProjectTask[] @relation("TaskAssignee")
   timeEntries            TimeEntry[]   @relation("TimeEntryUser")
   assignedTickets        Ticket[]      @relation("TicketAssignee")
+  createdPurchaseOrders  PurchaseOrder[] @relation("PurchaseOrderCreatedBy")
+  receivedGoodsReceipts  GoodsReceipt[]  @relation("GoodsReceiptReceivedBy")
 
   @@index([companyId, status])
   @@map("users")
@@ -853,6 +858,8 @@ model Warehouse {
   company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   stockItems     StockItem[]
   stockMovements StockMovement[]
+  purchaseOrders PurchaseOrder[]
+  goodsReceipts  GoodsReceipt[]
 
   @@unique([companyId, code])
   @@index([companyId, deletedAt])
@@ -1258,4 +1265,99 @@ model Ticket {
   @@index([companyId, deletedAt, status])
   @@index([assigneeId])
   @@map("tickets")
+}
+
+// ---------------------------------------------------------------------------
+// Purchase (Milestone 7h — eighth business module)
+// ---------------------------------------------------------------------------
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SENT
+  CONFIRMED
+  RECEIVED
+  CANCELLED
+}
+
+/// A vendor. Deliberately its own model rather than reusing CrmAccount —
+/// CrmAccount is the CRM/sales-side "customer or prospect" concept; keeping
+/// them separate avoids the same ambiguity already guarded against for
+/// LedgerAccount vs CrmAccount in Accounting.
+model Supplier {
+  id        String    @id @default(uuid())
+  companyId String    @map("company_id")
+  name      String
+  code      String
+  email     String?
+  phone     String?
+  address   String?
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt])
+  @@map("suppliers")
+}
+
+/// An order to a Supplier. Line items are a JSON snapshot, same convention
+/// as Sales' Quote/SalesOrder/Invoice, reusing the same LineItemDto shape
+/// (unitPriceCents here means "unit cost agreed with the supplier").
+/// Receiving is a dedicated action (see GoodsReceipt) rather than a plain
+/// status update, since it has a real side effect: it moves stock.
+model PurchaseOrder {
+  id            String              @id @default(uuid())
+  companyId     String              @map("company_id")
+  supplierId    String              @map("supplier_id")
+  warehouseId   String?             @map("warehouse_id")
+  createdById   String?             @map("created_by_id")
+  orderNumber   String              @map("order_number")
+  status        PurchaseOrderStatus @default(DRAFT)
+  items         Json
+  subtotalCents Int                 @default(0) @map("subtotal_cents")
+  totalCents    Int                 @default(0) @map("total_cents")
+  currency      String              @default("USD")
+  expectedDate  DateTime?           @map("expected_date")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+  deletedAt     DateTime?           @map("deleted_at")
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier      Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  warehouse     Warehouse?     @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  createdBy     User?          @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  goodsReceipt  GoodsReceipt?
+
+  @@unique([companyId, orderNumber])
+  @@index([companyId, deletedAt, status])
+  @@map("purchase_orders")
+}
+
+/// Records that a CONFIRMED PurchaseOrder's goods arrived. Always a full
+/// receipt of the order (one receipt per order, the same "one conversion
+/// each" simplicity Sales applies to Quote->Order->Invoice) — creating this
+/// transactionally posts an inbound StockMovement per line item and updates
+/// StockItem quantities, reusing Inventory's own movement-recording logic
+/// rather than re-implementing it.
+model GoodsReceipt {
+  id              String   @id @default(uuid())
+  companyId       String   @map("company_id")
+  purchaseOrderId String   @unique @map("purchase_order_id")
+  warehouseId     String   @map("warehouse_id")
+  receivedById    String?  @map("received_by_id")
+  receiptNumber   String   @map("receipt_number")
+  items           Json
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  warehouse     Warehouse     @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  receivedBy    User?         @relation("GoodsReceiptReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, receiptNumber])
+  @@map("goods_receipts")
 }

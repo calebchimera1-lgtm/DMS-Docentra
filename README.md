@@ -132,6 +132,14 @@ Built and reviewed one at a time, in this order:
             open/unassigned/overdue reports, CSV export, RBAC, audit
             logging. See
             [docs/api](docs/api/README.md#support-milestone-7g--seventh-business-module).
+      - [x] **Purchase** — suppliers, purchase orders
+            (DRAFT→SENT→CONFIRMED→RECEIVED), and a receiving action
+            that transactionally posts Inventory stock movements —
+            the buy-side counterpart to Sales, reusing its line-item
+            and document-numbering utilities outright. Full CRUD +
+            GraphQL, committed-spend reports, CSV export, RBAC, audit
+            logging. See
+            [docs/api](docs/api/README.md#purchase-milestone-7h--eighth-business-module).
       - [ ] The rest.
 
 ## Getting started (local development)

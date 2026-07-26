@@ -27,6 +27,7 @@ import { NotificationsModule } from "./modules/notifications/notifications.modul
 import { PermissionsModule } from "./modules/permissions/permissions.module";
 import { PluginsModule } from "./modules/plugins/plugins.module";
 import { ProjectsModule } from "./modules/projects/projects.module";
+import { PurchaseModule } from "./modules/purchase/purchase.module";
 import { RolesModule } from "./modules/roles/roles.module";
 import { SalesModule } from "./modules/sales/sales.module";
 import { SupportModule } from "./modules/support/support.module";
@@ -78,6 +79,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
     HrModule,
     ProjectsModule,
     SupportModule,
+    PurchaseModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },

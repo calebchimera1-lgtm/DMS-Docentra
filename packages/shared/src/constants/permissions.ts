@@ -32,6 +32,9 @@ export const PERMISSIONS = {
   SUPPORT_READ: "support:read",
   SUPPORT_WRITE: "support:write",
   SUPPORT_DELETE: "support:delete",
+  PURCHASE_READ: "purchase:read",
+  PURCHASE_WRITE: "purchase:write",
+  PURCHASE_DELETE: "purchase:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -220,5 +223,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "support",
     action: "delete",
     description: "Delete support tickets",
+  },
+  {
+    key: PERMISSIONS.PURCHASE_READ,
+    module: "purchase",
+    action: "read",
+    description: "View suppliers, purchase orders, and goods receipts",
+  },
+  {
+    key: PERMISSIONS.PURCHASE_WRITE,
+    module: "purchase",
+    action: "write",
+    description: "Create and edit suppliers and purchase orders, and receive goods",
+  },
+  {
+    key: PERMISSIONS.PURCHASE_DELETE,
+    module: "purchase",
+    action: "delete",
+    description: "Delete suppliers and draft purchase orders",
   },
 ];

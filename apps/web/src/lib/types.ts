@@ -494,3 +494,41 @@ export interface TicketsByStatus {
   status: TicketStatus;
   count: number;
 }
+
+export interface Supplier {
+  id: string;
+  name: string;
+  code: string;
+  email: string | null;
+  phone: string | null;
+  isActive: boolean;
+}
+
+export type PurchaseOrderStatus = "DRAFT" | "SENT" | "CONFIRMED" | "RECEIVED" | "CANCELLED";
+
+export interface PurchaseOrder {
+  id: string;
+  orderNumber: string;
+  status: PurchaseOrderStatus;
+  items: LineItem[];
+  subtotalCents: number;
+  totalCents: number;
+  currency: string;
+  expectedDate: string | null;
+  supplier: { id: string; name: string; code: string };
+  warehouse: { id: string; name: string; code: string } | null;
+  goodsReceipt?: { id: string; receiptNumber: string } | null;
+  createdAt: string;
+}
+
+export interface PurchaseSummary {
+  supplierCount: number;
+  openOrderCount: number;
+  committedSpendCents: number;
+  receivedOrderCount: number;
+}
+
+export interface PurchaseOrdersByStatus {
+  status: PurchaseOrderStatus;
+  count: number;
+}
