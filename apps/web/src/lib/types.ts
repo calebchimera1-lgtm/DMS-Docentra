@@ -642,3 +642,69 @@ export interface ExpensesByCategory {
   categoryName: string;
   totalCents: number;
 }
+
+export interface AssetCategory {
+  id: string;
+  name: string;
+  code: string;
+  defaultUsefulLifeMonths: number;
+  assetAccountId: string | null;
+  depreciationExpenseAccountId: string | null;
+  accumulatedDepreciationAccountId: string | null;
+  assetAccount?: { id: string; code: string; name: string } | null;
+  depreciationExpenseAccount?: { id: string; code: string; name: string } | null;
+  accumulatedDepreciationAccount?: { id: string; code: string; name: string } | null;
+  isActive: boolean;
+}
+
+export type AssetStatus = "ACTIVE" | "DISPOSED";
+
+export interface Asset {
+  id: string;
+  assetNumber: string;
+  name: string;
+  purchaseDate: string;
+  purchaseCostCents: number;
+  salvageValueCents: number;
+  usefulLifeMonths: number;
+  accumulatedDepreciationCents: number;
+  currency: string;
+  status: AssetStatus;
+  disposalDate: string | null;
+  disposalProceedsCents: number | null;
+  note: string | null;
+  category: { id: string; name: string; code: string };
+  disposalJournalEntry?: { id: string; entryNumber: string } | null;
+}
+
+export type DepreciationRunStatus = "DRAFT" | "POSTED" | "CANCELLED";
+
+export interface DepreciationRun {
+  id: string;
+  periodDate: string;
+  status: DepreciationRunStatus;
+  journalEntry?: { id: string; entryNumber: string } | null;
+  _count: { lines: number };
+}
+
+export interface DepreciationLine {
+  id: string;
+  amountCents: number;
+  accumulatedAfterCents: number;
+  asset: { id: string; assetNumber: string; name: string };
+  depreciationRun: { id: string; periodDate: string; status: DepreciationRunStatus };
+}
+
+export interface AssetsSummary {
+  activeAssetCount: number;
+  disposedAssetCount: number;
+  totalPurchaseCostCents: number;
+  totalAccumulatedDepreciationCents: number;
+  totalNetBookValueCents: number;
+}
+
+export interface AssetsByCategory {
+  categoryName: string;
+  assetCount: number;
+  netBookValueCents: number;
+}

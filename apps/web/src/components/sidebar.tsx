@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Banknote,
   Boxes,
+  Building2,
   FolderKanban,
   LayoutDashboard,
   LifeBuoy,
@@ -38,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Purchase", href: "/purchase", icon: ShoppingBag },
   { label: "Payroll", href: "/payroll", icon: Wallet },
   { label: "Expenses", href: "/expenses", icon: Receipt },
+  { label: "Assets", href: "/assets", icon: Building2 },
 ];
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {

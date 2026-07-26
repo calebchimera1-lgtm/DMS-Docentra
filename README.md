@@ -156,6 +156,14 @@ Built and reviewed one at a time, in this order:
             spend-by-category reports, CSV export, RBAC, audit
             logging. See
             [docs/api](docs/api/README.md#expenses-milestone-7j--tenth-business-module).
+      - [x] **Assets** — a fixed-asset register with straight-line
+            depreciation runs (grouped by category into balanced
+            journal entries) and a disposal workflow that computes
+            and posts any resulting gain or loss across a
+            four-line balanced entry. Full CRUD + GraphQL,
+            summary/by-category reports, CSV export, RBAC, audit
+            logging. See
+            [docs/api](docs/api/README.md#assets-milestone-7k--eleventh-business-module).
       - [ ] The rest.
 
 ## Getting started (local development)

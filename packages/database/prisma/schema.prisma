@@ -235,6 +235,10 @@ model Company {
   payslips         Payslip[]
   expenseCategories ExpenseCategory[]
   expenseClaims     ExpenseClaim[]
+  assetCategories   AssetCategory[]
+  assets            Asset[]
+  depreciationRuns  DepreciationRun[]
+  depreciationLines DepreciationLine[]
 
   @@index([status])
   @@map("companies")
@@ -324,6 +328,7 @@ model User {
   createdPurchaseOrders  PurchaseOrder[] @relation("PurchaseOrderCreatedBy")
   receivedGoodsReceipts  GoodsReceipt[]  @relation("GoodsReceiptReceivedBy")
   createdPayRuns         PayRun[]        @relation("PayRunCreatedBy")
+  createdDepreciationRuns DepreciationRun[] @relation("DepreciationRunCreatedBy")
 
   @@index([companyId, status])
   @@map("users")
@@ -944,6 +949,9 @@ model LedgerAccount {
   debitPayments  Payment[]     @relation("PaymentDebitAccount")
   creditPayments Payment[]     @relation("PaymentCreditAccount")
   expenseCategories ExpenseCategory[]
+  assetCategoriesAsAsset   AssetCategory[] @relation("AssetCategoryAssetAccount")
+  assetCategoriesAsExpense AssetCategory[] @relation("AssetCategoryDepreciationExpenseAccount")
+  assetCategoriesAsAccum   AssetCategory[] @relation("AssetCategoryAccumulatedDepreciationAccount")
 
   @@unique([companyId, code])
   @@index([companyId, deletedAt, type])
@@ -965,11 +973,13 @@ model JournalEntry {
   updatedAt   DateTime           @updatedAt @map("updated_at")
   deletedAt   DateTime?          @map("deleted_at")
 
-  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  createdBy    User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  lines        JournalLine[]
-  payment      Payment?
-  expenseClaim ExpenseClaim?
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy       User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  lines           JournalLine[]
+  payment         Payment?
+  expenseClaim    ExpenseClaim?
+  depreciationRun DepreciationRun?
+  disposedAsset   Asset?
 
   @@unique([companyId, entryNumber])
   @@index([companyId, deletedAt, status])
@@ -1551,4 +1561,133 @@ model ExpenseClaim {
   @@index([companyId, deletedAt, status])
   @@index([employeeId])
   @@map("expense_claims")
+}
+
+// ---------------------------------------------------------------------------
+// Assets (Milestone 7k — eleventh business module)
+// ---------------------------------------------------------------------------
+
+enum AssetStatus {
+  ACTIVE
+  DISPOSED
+}
+
+enum DepreciationRunStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+}
+
+/// A per-company category (Computers, Vehicles, Office Furniture, ...)
+/// carrying the default useful life and the three ledger accounts its
+/// assets post against: the fixed-asset account (credited on disposal),
+/// the depreciation expense account (debited each depreciation run), and
+/// the accumulated-depreciation contra-asset account (credited each
+/// depreciation run, debited on disposal). Any of the three left unset
+/// still allows registering assets — it only blocks depreciate/dispose,
+/// the same "unmapped category" pattern Expenses applies.
+model AssetCategory {
+  id                              String    @id @default(uuid())
+  companyId                       String    @map("company_id")
+  name                            String
+  code                            String
+  defaultUsefulLifeMonths         Int       @default(36) @map("default_useful_life_months")
+  assetAccountId                  String?   @map("asset_account_id")
+  depreciationExpenseAccountId    String?   @map("depreciation_expense_account_id")
+  accumulatedDepreciationAccountId String?  @map("accumulated_depreciation_account_id")
+  isActive                        Boolean   @default(true) @map("is_active")
+  createdAt                       DateTime  @default(now()) @map("created_at")
+  updatedAt                       DateTime  @updatedAt @map("updated_at")
+  deletedAt                       DateTime? @map("deleted_at")
+
+  company                       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assetAccount                  LedgerAccount? @relation("AssetCategoryAssetAccount", fields: [assetAccountId], references: [id], onDelete: SetNull)
+  depreciationExpenseAccount    LedgerAccount? @relation("AssetCategoryDepreciationExpenseAccount", fields: [depreciationExpenseAccountId], references: [id], onDelete: SetNull)
+  accumulatedDepreciationAccount LedgerAccount? @relation("AssetCategoryAccumulatedDepreciationAccount", fields: [accumulatedDepreciationAccountId], references: [id], onDelete: SetNull)
+  assets                        Asset[]
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt])
+  @@map("asset_categories")
+}
+
+/// A registered fixed asset. Registering one does NOT post an acquisition
+/// journal entry — the purchase is assumed already recorded elsewhere
+/// (e.g. via Purchase + a Payment), so Assets stays focused on tracking
+/// depreciation and disposal rather than double-booking the acquisition.
+model Asset {
+  id                            String      @id @default(uuid())
+  companyId                     String      @map("company_id")
+  categoryId                    String      @map("category_id")
+  assetNumber                   String      @map("asset_number")
+  name                          String
+  purchaseDate                  DateTime    @map("purchase_date")
+  purchaseCostCents             Int         @map("purchase_cost_cents")
+  salvageValueCents             Int         @default(0) @map("salvage_value_cents")
+  usefulLifeMonths              Int         @map("useful_life_months")
+  accumulatedDepreciationCents  Int         @default(0) @map("accumulated_depreciation_cents")
+  currency                      String      @default("USD")
+  status                        AssetStatus @default(ACTIVE)
+  disposalDate                  DateTime?   @map("disposal_date")
+  disposalProceedsCents         Int?        @map("disposal_proceeds_cents")
+  disposalJournalEntryId        String?     @unique @map("disposal_journal_entry_id")
+  note                          String?
+  createdAt                     DateTime    @default(now()) @map("created_at")
+  updatedAt                     DateTime    @updatedAt @map("updated_at")
+  deletedAt                     DateTime?   @map("deleted_at")
+
+  company             Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category            AssetCategory      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  disposalJournalEntry JournalEntry?     @relation(fields: [disposalJournalEntryId], references: [id], onDelete: SetNull)
+  depreciationLines   DepreciationLine[]
+
+  @@unique([companyId, assetNumber])
+  @@index([companyId, deletedAt, status])
+  @@index([categoryId])
+  @@map("assets")
+}
+
+/// A depreciation period. `generate` (DRAFT only) posts one period of
+/// straight-line depreciation for every ACTIVE asset with remaining
+/// depreciable value, in a single JournalEntry — the real side effect,
+/// same dedicated-action precedent as PurchaseOrder's receive and
+/// Payroll's PayRun.generate.
+model DepreciationRun {
+  id             String                 @id @default(uuid())
+  companyId      String                 @map("company_id")
+  createdById    String?                @map("created_by_id")
+  periodDate     DateTime               @map("period_date")
+  status         DepreciationRunStatus  @default(DRAFT)
+  journalEntryId String?                @unique @map("journal_entry_id")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  updatedAt      DateTime               @updatedAt @map("updated_at")
+  deletedAt      DateTime?              @map("deleted_at")
+
+  company      Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy    User?              @relation("DepreciationRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  journalEntry JournalEntry?      @relation(fields: [journalEntryId], references: [id], onDelete: SetNull)
+  lines        DepreciationLine[]
+
+  @@index([companyId, deletedAt, status])
+  @@map("depreciation_runs")
+}
+
+/// One asset's computed depreciation for a DepreciationRun — generated,
+/// not hand-entered, mirroring Payroll's Payslip-per-employee convention.
+model DepreciationLine {
+  id                    String   @id @default(uuid())
+  companyId             String   @map("company_id")
+  depreciationRunId     String   @map("depreciation_run_id")
+  assetId               String   @map("asset_id")
+  amountCents           Int      @map("amount_cents")
+  accumulatedAfterCents Int      @map("accumulated_after_cents")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  depreciationRun DepreciationRun @relation(fields: [depreciationRunId], references: [id], onDelete: Cascade)
+  asset           Asset           @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  @@unique([depreciationRunId, assetId])
+  @@index([companyId, assetId])
+  @@map("depreciation_lines")
 }

@@ -41,6 +41,9 @@ export const PERMISSIONS = {
   EXPENSES_READ: "expenses:read",
   EXPENSES_WRITE: "expenses:write",
   EXPENSES_DELETE: "expenses:delete",
+  ASSETS_READ: "assets:read",
+  ASSETS_WRITE: "assets:write",
+  ASSETS_DELETE: "assets:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -283,5 +286,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "expenses",
     action: "delete",
     description: "Delete expense categories and draft expense claims",
+  },
+  {
+    key: PERMISSIONS.ASSETS_READ,
+    module: "assets",
+    action: "read",
+    description: "View asset categories, fixed assets, and depreciation runs",
+  },
+  {
+    key: PERMISSIONS.ASSETS_WRITE,
+    module: "assets",
+    action: "write",
+    description: "Register assets, run depreciation, and dispose of assets",
+  },
+  {
+    key: PERMISSIONS.ASSETS_DELETE,
+    module: "assets",
+    action: "delete",
+    description: "Delete asset categories and never-depreciated assets",
   },
 ];

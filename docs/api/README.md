@@ -1062,3 +1062,96 @@ a click-to-expand row showing the line-item and rejection-reason/
 journal-entry detail, and per-row Submit/Cancel, Approve (with an
 inline credit-account picker)/Reject (with an inline reason input),
 and Mark paid actions gated by the claim's status.
+
+## Assets (Milestone 7k — eleventh business module)
+
+Source: `apps/api/src/modules/assets/` (`asset-categories/`,
+`assets/`, `depreciation-runs/`, `depreciation-lines/`).
+
+A fixed-asset register with straight-line depreciation runs and a
+disposal workflow that computes and posts any resulting gain or loss —
+the most involved accounting integration yet, extending the
+"group line items by category into balanced journal lines" idiom
+Expenses' `approve()` established, and adding a four-line balanced
+entry (asset, cash, accumulated depreciation, gain/loss) for disposal.
+
+### Entities
+
+- **Asset categories** (`asset_categories`) — a per-company catalog
+  (Computers, Vehicles, ...) carrying a default useful life and three
+  ledger account mappings: the fixed-asset account (credited on
+  disposal), the depreciation expense account (debited each
+  depreciation run), and the accumulated-depreciation contra-asset
+  account (credited each depreciation run, debited on disposal). Any
+  left unset still allows registering assets in that category — it
+  only blocks `generate`/`dispose`, the same unmapped-category pattern
+  Expenses applies.
+- **Assets** (`assets`) — `ACTIVE → DISPOSED`. Registering one does
+  **not** post an acquisition journal entry — the purchase is assumed
+  already recorded elsewhere (e.g. via Purchase + a Payment), so this
+  module stays focused on depreciation and disposal rather than
+  double-booking the acquisition. `purchaseCostCents`/`purchaseDate`
+  are immutable once set; everything else (`name`, `salvageValueCents`,
+  `usefulLifeMonths`, `note`, `categoryId`) is editable while `ACTIVE`.
+  Deleting is blocked once an asset has any depreciation history (a
+  403, mirroring the "can't delete something with real history"
+  pattern used elsewhere), even though it's still `ACTIVE`.
+- **Depreciation runs** (`depreciation_runs`) — a period (e.g. a
+  month-end date): `DRAFT → POSTED`, or `CANCELLED` from `DRAFT`.
+  **Depreciation lines** (`depreciation_lines`) are one row per asset
+  per run, generated — not hand-entered — the same
+  one-child-row-per-parent-entity convention as Payroll's Payslip.
+
+### Generating: straight-line depreciation, grouped by category
+
+`POST /assets/depreciation-runs/:id/generate` (`DRAFT` only) computes,
+for every `ACTIVE` asset with remaining depreciable value,
+`min(floor((purchaseCostCents - salvageValueCents) / usefulLifeMonths),
+remainingDepreciableCents)` — capped so the last period never
+depreciates past the salvage value — then groups the amounts by
+category into one debit (expense account) / credit (accumulated
+depreciation account) line pair per category in a single `POSTED`
+`JournalEntry`, and updates each asset's running
+`accumulatedDepreciationCents`. Any eligible asset whose category is
+missing either mapped account fails the whole run with a 400 naming
+the category, before anything is posted.
+
+### Disposing: a four-line balanced entry with the resulting gain or loss
+
+`POST /assets/assets/:id/dispose` (`ACTIVE` only) takes a
+`disposalDate`, optional `disposalProceedsCents`, a `cashAccountId`
+(required once proceeds are non-zero), and a `gainLossAccountId`. It
+computes `netBookValueCents = purchaseCostCents -
+accumulatedDepreciationCents` and `gainLossCents = proceedsCents -
+netBookValueCents`, then posts: a debit to accumulated depreciation
+(removing the contra-asset balance), a debit to cash for any proceeds,
+a credit to the asset account for the original cost, and a debit
+(loss) or credit (gain) to the caller's gain/loss account for the
+difference — four lines that balance by construction, since
+`accumDep + proceeds + max(0,-gainLoss) = cost + max(0,gainLoss)`
+reduces to an identity given `netBookValue = cost - accumDep`.
+
+`AssetsModule`'s controllers all sit under literal sub-paths
+(`categories`, `assets`, `depreciation-runs`, `depreciation-lines`,
+`reports`) — no controller claims the bare `assets` root, so the
+Projects `:id`-wildcard-shadowing bug class is avoided by
+construction, same as every module since.
+
+### Reports
+
+`GET /assets/reports/summary` (active/disposed counts, total purchase
+cost, accumulated depreciation, and net book value across active
+assets) and `GET /assets/reports/by-category` (active asset count and
+net book value per category) — the latter aggregated in application
+code since it needs a per-asset computed net-book-value sum, not a
+plain column `groupBy`.
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/assets/` — an overview (stat tiles plus
+a net-book-value-by-category bar chart), a Categories page (with three
+ledger-account pickers), an Assets page (register form plus an
+inline per-row Dispose panel with date/proceeds/cash-account/
+gain-loss-account inputs), and a Depreciation Runs page with a
+click-to-expand row showing each posted line's amount and running
+accumulated total, mirroring Payroll's Pay Runs page.
