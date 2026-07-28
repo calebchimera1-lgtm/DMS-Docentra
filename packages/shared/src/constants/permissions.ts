@@ -59,6 +59,9 @@ export const PERMISSIONS = {
   ATTENDANCE_READ: "attendance:read",
   ATTENDANCE_WRITE: "attendance:write",
   ATTENDANCE_DELETE: "attendance:delete",
+  FLEET_READ: "fleet:read",
+  FLEET_WRITE: "fleet:write",
+  FLEET_DELETE: "fleet:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -409,5 +412,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "attendance",
     action: "delete",
     description: "Delete an attendance record",
+  },
+  {
+    key: PERMISSIONS.FLEET_READ,
+    module: "fleet",
+    action: "read",
+    description: "View vehicles, trips, and maintenance records",
+  },
+  {
+    key: PERMISSIONS.FLEET_WRITE,
+    module: "fleet",
+    action: "write",
+    description: "Create and edit vehicles, log trips, and schedule or run maintenance",
+  },
+  {
+    key: PERMISSIONS.FLEET_DELETE,
+    module: "fleet",
+    action: "delete",
+    description: "Delete a vehicle, trip, or maintenance record",
   },
 ];

@@ -945,3 +945,61 @@ export interface AttendanceByStatus {
   status: AttendanceStatus;
   count: number;
 }
+
+export type VehicleStatus = "ACTIVE" | "IN_MAINTENANCE" | "RETIRED";
+
+export interface Vehicle {
+  id: string;
+  registrationNumber: string;
+  make: string;
+  model: string;
+  year: number | null;
+  status: VehicleStatus;
+  odometerReading: number;
+  fuelType: string | null;
+  purchaseDate: string | null;
+  note: string | null;
+  assignedDriver: HrEmployeeRef | null;
+}
+
+export type TripStatus = "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+
+export interface Trip {
+  id: string;
+  purpose: string | null;
+  status: TripStatus;
+  startOdometer: number;
+  endOdometer: number | null;
+  distance: number | null;
+  startedAt: string;
+  endedAt: string | null;
+  vehicle: { id: string; registrationNumber: string; make: string; model: string };
+  driver: HrEmployeeRef | null;
+}
+
+export type MaintenanceType = "SERVICE" | "REPAIR" | "INSPECTION";
+export type MaintenanceStatus = "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+
+export interface MaintenanceRecord {
+  id: string;
+  type: MaintenanceType;
+  status: MaintenanceStatus;
+  scheduledDate: string;
+  completedDate: string | null;
+  costCents: number | null;
+  description: string | null;
+  vehicle: { id: string; registrationNumber: string; make: string; model: string };
+}
+
+export interface FleetSummary {
+  activeCount: number;
+  inMaintenanceCount: number;
+  retiredCount: number;
+  tripsInProgressCount: number;
+  totalDistanceAllTime: number;
+}
+
+export interface VehiclesByStatus {
+  status: VehicleStatus;
+  count: number;
+}

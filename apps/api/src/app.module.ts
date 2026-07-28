@@ -24,6 +24,7 @@ import { ContractsModule } from "./modules/contracts/contracts.module";
 import { CrmModule } from "./modules/crm/crm.module";
 import { DashboardModule } from "./modules/dashboard/dashboard.module";
 import { ExpensesModule } from "./modules/expenses/expenses.module";
+import { FleetModule } from "./modules/fleet/fleet.module";
 import { HealthModule } from "./modules/health/health.module";
 import { HrModule } from "./modules/hr/hr.module";
 import { InventoryModule } from "./modules/inventory/inventory.module";
@@ -96,6 +97,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
     ManufacturingModule,
     PosModule,
     AttendanceModule,
+    FleetModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },

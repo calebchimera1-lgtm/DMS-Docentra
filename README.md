@@ -204,6 +204,17 @@ Built and reviewed one at a time, in this order:
             all-time. Full CRUD + GraphQL, summary/by-status reports,
             CSV export, RBAC, audit logging. See
             [docs/api](docs/api/README.md#attendance-milestone-7p--sixteenth-business-module).
+      - [x] **Fleet Management** — vehicles, trips, and maintenance
+            jobs interlocked through the vehicle's own status: a trip
+            may only start on an `ACTIVE` vehicle and snapshots its
+            odometer, completing a trip writes the vehicle's new
+            odometer reading, and a maintenance job flips the vehicle
+            to `IN_MAINTENANCE` while it runs — so the two workflows
+            are mutually exclusive by construction. Drivers reuse the
+            existing HR employee record. Full CRUD + GraphQL,
+            summary/by-status reports, CSV export, RBAC, audit
+            logging. See
+            [docs/api](docs/api/README.md#fleet-management-milestone-7q--seventeenth-business-module).
       - [ ] The rest.
 
 ## Getting started (local development)

@@ -1496,3 +1496,80 @@ Contracts) with today's stat tiles, a by-status bar chart, a clock-in
 form, a mark-absence/leave/half-day form, and a list with a per-row
 Clock out button for any record that's clocked in but not yet clocked
 out.
+
+## Fleet Management (Milestone 7q — seventeenth business module)
+
+Source: `apps/api/src/modules/fleet/`.
+
+Three resources that interlock through a single piece of shared
+state — the vehicle's own `status`. A trip may only start on an
+`ACTIVE` vehicle, and a maintenance job flips that vehicle to
+`IN_MAINTENANCE` while it runs, so the two workflows are mutually
+exclusive by construction rather than by an explicit lock.
+
+### Entities
+
+- **Vehicles** (`vehicles`) — a `registrationNumber` (unique per
+  company), `make`, `model`, optional `year`/`fuelType`/
+  `purchaseDate`, a `status` (`ACTIVE`/`IN_MAINTENANCE`/`RETIRED`),
+  and an `odometerReading` cache. `assignedDriverId` points at an
+  existing HR `Employee` rather than a new Driver entity — a driver
+  is a person the company already employs, so duplicating that record
+  would fragment it.
+- **Trips** (`trips`) — a `vehicleId`, optional `driverId`, a
+  `status` (`IN_PROGRESS`/`COMPLETED`/`CANCELLED`), the
+  `startOdometer` snapshot, and `endOdometer`/`distance`/`endedAt`
+  once completed.
+- **Maintenance records** (`maintenance_records`) — a `vehicleId`, a
+  `type` (`SERVICE`/`REPAIR`/`INSPECTION`), a `status`
+  (`SCHEDULED`/`IN_PROGRESS`/`COMPLETED`/`CANCELLED`), a
+  `scheduledDate`, and `completedDate`/`costCents` on completion.
+
+### Workflow: trips update the odometer, maintenance moves the vehicle
+
+- `POST /fleet/trips` — logging a trip has **no draft stage**;
+  `create` *is* the start (the same shape as POS's `PosSale`, since a
+  trip is recorded as it happens rather than planned in advance). It
+  rejects any vehicle that is not `ACTIVE`, defaults `driverId` to the
+  vehicle's assigned driver, and snapshots the vehicle's current
+  `odometerReading` as `startOdometer`.
+  `POST /fleet/trips/:id/complete` (`{ endOdometer }`) validates the
+  reading against that snapshot, computes `distance`, and — in one
+  transaction — writes the vehicle's new `odometerReading`. This is the
+  same "reuse the resource's own cache-update logic" convention that
+  keeps `StockItem.quantityOnHand` correct across Purchase receipts,
+  Manufacturing runs, and POS sales.
+- `POST /fleet/maintenance/:id/start` and `.../complete` carry a real
+  cross-entity side effect: each flips the related vehicle's `status`
+  to `IN_MAINTENANCE` and back to `ACTIVE`, transactionally (the same
+  "workflow action with a side effect on a related record" pattern as
+  Recruitment's `hire()`, which creates an Employee). `cancel` is
+  allowed from either `SCHEDULED` or `IN_PROGRESS`, and reverts the
+  vehicle when cancelling a job that had already started. Starting a
+  job on a vehicle that is already `IN_MAINTENANCE` or `RETIRED` is
+  rejected.
+- Vehicles retire and reactivate (`POST /fleet/vehicles/:id/retire`,
+  `.../reactivate`); a vehicle in maintenance cannot be retired, and
+  only a `RETIRED` vehicle can be deleted.
+
+`FleetModule` needs no controller-ordering workaround: `vehicles`,
+`trips`, `maintenance`, and `reports` are all sibling literal
+sub-paths and no controller claims the bare `fleet` root, so no `:id`
+wildcard exists for them to collide with — collision-avoidance by
+construction, as in every module since Projects.
+
+### Reports
+
+`GET /fleet/reports/summary` (active / in-maintenance / retired
+vehicle counts, trips currently in progress, and total distance
+driven all-time across completed trips) and
+`GET /fleet/reports/by-status` (vehicle count per `VehicleStatus`).
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/fleet/` — an overview page (stat tiles
+plus a vehicles-by-status bar chart) and three sub-pages behind a
+`FleetSubnav`, matching the multi-resource layout used by
+Manufacturing and POS: Vehicles (CRUD, retire/reactivate/delete),
+Trips (start, then an inline end-odometer input to complete), and
+Maintenance (schedule, start, then an inline cost input to complete).

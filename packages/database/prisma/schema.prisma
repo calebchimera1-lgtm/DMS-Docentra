@@ -251,6 +251,9 @@ model Company {
   posRegisterSessions PosRegisterSession[]
   posSales            PosSale[]
   attendanceRecords   AttendanceRecord[]
+  vehicles            Vehicle[]
+  trips               Trip[]
+  maintenanceRecords  MaintenanceRecord[]
 
   @@index([status])
   @@map("companies")
@@ -1129,6 +1132,8 @@ model Employee {
   interviewsAsInterviewer Interview[]  @relation("InterviewInterviewer")
   hiredFromApplication  Application?
   attendanceRecords     AttendanceRecord[]
+  assignedVehicles      Vehicle[] @relation("VehicleAssignedDriver")
+  tripsAsDriver         Trip[]    @relation("TripDriver")
 
   @@unique([companyId, employeeNumber])
   @@index([companyId, deletedAt, status])
@@ -2132,4 +2137,124 @@ model AttendanceRecord {
   @@index([companyId, deletedAt, status])
   @@index([companyId, date])
   @@map("attendance_records")
+}
+
+// ---------------------------------------------------------------------------
+// Fleet Management (Milestone 7q — seventeenth business module)
+// ---------------------------------------------------------------------------
+
+enum VehicleStatus {
+  ACTIVE
+  IN_MAINTENANCE
+  RETIRED
+}
+
+enum TripStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum MaintenanceType {
+  SERVICE
+  REPAIR
+  INSPECTION
+}
+
+enum MaintenanceStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+/// A company vehicle. `odometerReading` is a cache kept in sync by Trip
+/// completion (the same "cache maintained transactionally alongside each
+/// movement" convention Inventory's StockItem uses), not a standalone
+/// source of truth — the Trip history is that.
+model Vehicle {
+  id                 String        @id @default(uuid())
+  companyId          String        @map("company_id")
+  registrationNumber String        @map("registration_number")
+  make               String
+  model              String
+  year               Int?
+  status             VehicleStatus @default(ACTIVE)
+  odometerReading    Int           @default(0) @map("odometer_reading")
+  fuelType           String?       @map("fuel_type")
+  assignedDriverId   String?       @map("assigned_driver_id")
+  purchaseDate       DateTime?     @map("purchase_date")
+  note               String?
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+  deletedAt          DateTime?     @map("deleted_at")
+
+  company           Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assignedDriver     Employee?           @relation("VehicleAssignedDriver", fields: [assignedDriverId], references: [id], onDelete: SetNull)
+  trips              Trip[]
+  maintenanceRecords MaintenanceRecord[]
+
+  @@unique([companyId, registrationNumber])
+  @@index([companyId, deletedAt, status])
+  @@map("vehicles")
+}
+
+/// A single vehicle use, logged as it happens rather than planned in
+/// advance — `create` is already the start: it snapshots the vehicle's
+/// current odometer reading as `startOdometer`. `complete` validates
+/// `endOdometer` against that snapshot, computes `distance`, and updates
+/// the vehicle's own `odometerReading` — the same "reuse the resource's own
+/// cache-update logic" convention every stock-moving action in this
+/// codebase follows for StockItem.
+model Trip {
+  id            String     @id @default(uuid())
+  companyId     String     @map("company_id")
+  vehicleId     String     @map("vehicle_id")
+  driverId      String?    @map("driver_id")
+  purpose       String?
+  status        TripStatus @default(IN_PROGRESS)
+  startOdometer Int        @map("start_odometer")
+  endOdometer   Int?       @map("end_odometer")
+  distance      Int?
+  startedAt     DateTime   @default(now()) @map("started_at")
+  endedAt       DateTime?  @map("ended_at")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+  deletedAt     DateTime?  @map("deleted_at")
+
+  company Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  vehicle Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  driver  Employee? @relation("TripDriver", fields: [driverId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, deletedAt, status])
+  @@index([vehicleId])
+  @@map("trips")
+}
+
+/// A scheduled or in-progress upkeep job against a Vehicle. `start`
+/// (SCHEDULED -> IN_PROGRESS) flips the vehicle's own status to
+/// IN_MAINTENANCE; `complete` (IN_PROGRESS -> COMPLETED) flips it back to
+/// ACTIVE and records the actual completion date/cost — a real
+/// cross-entity side effect, the same "workflow action with a side effect
+/// on a related record" shape as Recruitment's hire() creating an Employee.
+model MaintenanceRecord {
+  id            String            @id @default(uuid())
+  companyId     String            @map("company_id")
+  vehicleId     String            @map("vehicle_id")
+  type          MaintenanceType   @default(SERVICE)
+  status        MaintenanceStatus @default(SCHEDULED)
+  scheduledDate DateTime          @map("scheduled_date")
+  completedDate DateTime?         @map("completed_date")
+  costCents     Int?              @map("cost_cents")
+  description   String?
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  deletedAt     DateTime?         @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, deletedAt, status])
+  @@index([vehicleId])
+  @@map("maintenance_records")
 }

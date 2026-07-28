@@ -15,6 +15,7 @@ import {
   ShoppingBag,
   ShoppingCart,
   Store,
+  Truck,
   UserSearch,
   UsersRound,
   Users2,
@@ -50,6 +51,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Manufacturing", href: "/manufacturing", icon: Wrench },
   { label: "Point of Sale", href: "/pos", icon: Store },
   { label: "Attendance", href: "/attendance", icon: CalendarCheck },
+  { label: "Fleet Management", href: "/fleet", icon: Truck },
 ];
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
