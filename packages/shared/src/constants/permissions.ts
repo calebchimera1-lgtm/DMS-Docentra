@@ -65,6 +65,9 @@ export const PERMISSIONS = {
   LOGISTICS_READ: "logistics:read",
   LOGISTICS_WRITE: "logistics:write",
   LOGISTICS_DELETE: "logistics:delete",
+  DOCUMENTS_READ: "documents:read",
+  DOCUMENTS_WRITE: "documents:write",
+  DOCUMENTS_DELETE: "documents:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -451,5 +454,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "logistics",
     action: "delete",
     description: "Delete a shipment",
+  },
+  {
+    key: PERMISSIONS.DOCUMENTS_READ,
+    module: "documents",
+    action: "read",
+    description: "Browse folders and documents and view their version history",
+  },
+  {
+    key: PERMISSIONS.DOCUMENTS_WRITE,
+    module: "documents",
+    action: "write",
+    description: "Create and edit folders and documents, and check them out, in, and publish them",
+  },
+  {
+    key: PERMISSIONS.DOCUMENTS_DELETE,
+    module: "documents",
+    action: "delete",
+    description: "Delete a folder or document",
   },
 ];

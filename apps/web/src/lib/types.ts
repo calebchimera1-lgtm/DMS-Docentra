@@ -1049,3 +1049,58 @@ export interface ShipmentsByStatus {
   status: ShipmentStatus;
   count: number;
 }
+
+export type DocumentStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+
+export interface DocumentUserRef {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
+export interface DocumentFolder {
+  id: string;
+  name: string;
+  description: string | null;
+  parent: { id: string; name: string } | null;
+  _count: { children: number; documents: number };
+}
+
+export interface DocumentVersion {
+  id: string;
+  versionNumber: number;
+  fileName: string;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  note: string | null;
+  createdAt: string;
+  createdBy: DocumentUserRef | null;
+}
+
+export interface ManagedDocument {
+  id: string;
+  title: string;
+  description: string | null;
+  status: DocumentStatus;
+  currentVersionNumber: number;
+  checkedOutById: string | null;
+  checkedOutAt: string | null;
+  folder: { id: string; name: string } | null;
+  checkedOutBy: DocumentUserRef | null;
+  owner: DocumentUserRef | null;
+  versions: DocumentVersion[];
+}
+
+export interface DocumentsSummary {
+  draftCount: number;
+  publishedCount: number;
+  archivedCount: number;
+  checkedOutCount: number;
+  folderCount: number;
+  versionCount: number;
+}
+
+export interface DocumentsByStatus {
+  status: DocumentStatus;
+  count: number;
+}

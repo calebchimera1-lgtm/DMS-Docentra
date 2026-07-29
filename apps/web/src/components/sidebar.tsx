@@ -14,6 +14,7 @@ import {
   Receipt,
   ShoppingBag,
   ShoppingCart,
+  FileStack,
   PackageCheck,
   Store,
   Truck,
@@ -54,6 +55,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Attendance", href: "/attendance", icon: CalendarCheck },
   { label: "Fleet Management", href: "/fleet", icon: Truck },
   { label: "Logistics", href: "/logistics", icon: PackageCheck },
+  { label: "Documents", href: "/documents", icon: FileStack },
 ];
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {

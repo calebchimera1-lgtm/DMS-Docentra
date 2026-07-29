@@ -229,6 +229,18 @@ Built and reviewed one at a time, in this order:
             over finished attempts only, CSV export, RBAC, audit
             logging. See
             [docs/api](docs/api/README.md#logistics--delivery-tracking-milestone-7r--eighteenth-business-module).
+      - [x] **Document Management System** — a folder tree, controlled
+            documents, and an append-only revision history. Introduces
+            the first concurrency control in the codebase: an exclusive
+            check-out lock, where a second user attempting to edit gets
+            a 409 naming the holder, and check-in appends the next
+            version and releases the lock in one transaction. Moving a
+            folder into its own subtree is rejected by an
+            arbitrary-depth ancestor walk. Binary storage reuses the
+            existing S3/Attachment layer rather than being
+            re-implemented. Full CRUD + GraphQL, summary/by-status
+            reports, CSV export, RBAC, audit logging. See
+            [docs/api](docs/api/README.md#document-management-system-milestone-7s--nineteenth-business-module).
       - [ ] The rest.
 
 ## Getting started (local development)

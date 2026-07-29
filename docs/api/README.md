@@ -1654,3 +1654,85 @@ shipments-by-status chart), a shipments list with a line-item editor and
 per-row workflow buttons (including an inline reason input for Fail),
 and a shipment detail page whose centrepiece is the delivery tracking
 timeline, alongside the linked Fleet trip and the shipped line items.
+
+## Document Management System (Milestone 7s — nineteenth business module)
+
+Source: `apps/api/src/modules/documents/`.
+
+Controlled documents: a folder tree, an append-only revision history, and
+an exclusive check-out lock. This is the **first concurrency-control
+pattern in the codebase** — every other module guards on status alone,
+which is enough when a single actor advances a record through a
+lifecycle, but not when several people can edit the same file at once.
+
+Binary storage is not re-implemented here: Milestone 6c's
+`Attachment`/S3 layer already owns that. A `DocumentVersion` records the
+file's identity (`fileName`, `mimeType`, `sizeBytes`, `storageKey`) so
+this module can stay about document lifecycle rather than uploads.
+
+### Entities
+
+- **Document folders** (`document_folders`) — a self-referencing tree,
+  unique on `(companyId, parentId, name)`. Deleting one requires it to be
+  empty of both subfolders and documents, so no branch is ever orphaned.
+- **Documents** (`documents`) — a `title`, optional `folderId`, a
+  `status` (`DRAFT`/`PUBLISHED`/`ARCHIVED`), a `currentVersionNumber`
+  cache, and the lock fields `checkedOutById`/`checkedOutAt`.
+- **Document versions** (`document_versions`) — immutable revisions,
+  unique on `(documentId, versionNumber)`. Never edited, never deleted:
+  checking in always appends the next number, the same append-only shape
+  Logistics' delivery events use for a shipment's timeline.
+
+### Workflow: the exclusive check-out
+
+- `POST /documents/files/:id/check-out` takes the lock. If someone else
+  already holds it the response is **409 Conflict, not 400** — the
+  request is well-formed and would succeed once the holder checks in,
+  which is precisely what a conflict means. The message names the holder
+  so the caller knows who to chase.
+- `POST /documents/files/:id/check-in` appends the next version and
+  releases the lock **in one transaction**, so a document can never end
+  up unlocked without its new revision, or revised but still locked.
+  Only the holder may check in.
+- `POST /documents/files/:id/cancel-check-out` releases the lock without
+  adding a revision — the "never mind" path — and is likewise restricted
+  to the holder.
+- Editing metadata (`PATCH`) is refused with 409 while another user holds
+  the lock, and `publish`/`archive` are refused with 400 while *any*
+  check-out is outstanding: those are statements about a settled
+  document, so the file must be checked in first regardless of who asks.
+- `publish` (DRAFT → PUBLISHED), `archive` (→ ARCHIVED), and `restore`
+  (ARCHIVED → PUBLISHED) round out the lifecycle. Deleting requires the
+  document to be un-checked-out and not published.
+
+### The folder cycle guard
+
+Moving a folder walks up from the proposed parent and refuses if the
+folder being moved appears in that chain — putting a folder inside its
+own subtree would detach the whole branch from the root. It is the same
+self-reference reasoning as Manufacturing's guard against a product
+becoming a component of its own BOM, but over an arbitrary depth rather
+than a single hop, so the walk is bounded by a `MAX_TREE_DEPTH` constant
+rather than trusting the data to terminate.
+
+`DocumentsModule` puts documents at `documents/files` rather than the
+bare `documents` root precisely so that `folders`, `files`, and `reports`
+are all sibling literal sub-paths with no `:id` wildcard to shadow them —
+collision-avoidance by construction, as in every module since Projects.
+
+### Reports
+
+`GET /documents/reports/summary` (counts by status, plus checked-out,
+folder, and total version counts — the version count is scoped through
+the parent document, since versions have no soft delete of their own and
+would otherwise keep counting after their document was removed) and
+`GET /documents/reports/by-status`.
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/documents/` — an overview page, a folders
+page showing subfolder/document counts with delete offered only on empty
+folders, a documents list whose action buttons are lock-aware (check
+out when free, check in / cancel when you hold it, and an explicit
+"Locked by someone else" note when you do not), and a detail page with
+the full version history.

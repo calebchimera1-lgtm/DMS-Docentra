@@ -257,6 +257,10 @@ model Company {
   shipments           Shipment[]
   deliveryEvents      DeliveryEvent[]
 
+  documentFolders  DocumentFolder[]
+  documents        Document[]
+  documentVersions DocumentVersion[]
+
   @@index([status])
   @@map("companies")
 }
@@ -353,6 +357,10 @@ model User {
   posSales                PosSale[]                @relation("PosSaleSoldBy")
 
   deliveryEvents DeliveryEvent[]
+
+  documentsCheckedOut Document[]        @relation("DocumentCheckedOutBy")
+  documentsOwned      Document[]        @relation("DocumentOwner")
+  documentVersions    DocumentVersion[]
 
   @@index([companyId, status])
   @@map("users")
@@ -2350,4 +2358,92 @@ model DeliveryEvent {
 
   @@index([shipmentId, occurredAt])
   @@map("delivery_events")
+}
+
+enum DocumentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+/// A node in the document tree. Self-referencing via `parentId`; the
+/// service rejects any move that would make a folder its own ancestor,
+/// the same self-reference guard Manufacturing uses to stop a product
+/// becoming a component of its own BOM.
+model DocumentFolder {
+  id          String    @id @default(uuid())
+  companyId   String    @map("company_id")
+  parentId    String?   @map("parent_id")
+  name        String
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  company   Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent    DocumentFolder?  @relation("DocumentFolderTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children  DocumentFolder[] @relation("DocumentFolderTree")
+  documents Document[]
+
+  @@unique([companyId, parentId, name])
+  @@index([companyId, deletedAt])
+  @@map("document_folders")
+}
+
+/// A controlled document. Editing is serialised by an exclusive
+/// check-out: `checkedOutById` is the lock holder, and only that user may
+/// check in a new version or release it. This is the first
+/// concurrency-control pattern in the codebase — every other module
+/// guards on status alone, which is enough when only one actor advances a
+/// record, but not when several people edit the same file.
+model Document {
+  id                   String         @id @default(uuid())
+  companyId            String         @map("company_id")
+  folderId             String?        @map("folder_id")
+  title                String
+  description          String?
+  status               DocumentStatus @default(DRAFT)
+  currentVersionNumber Int            @default(0) @map("current_version_number")
+  checkedOutById       String?        @map("checked_out_by_id")
+  checkedOutAt         DateTime?      @map("checked_out_at")
+  ownerId              String?        @map("owner_id")
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+  deletedAt            DateTime?      @map("deleted_at")
+
+  company      Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  folder       DocumentFolder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  checkedOutBy User?             @relation("DocumentCheckedOutBy", fields: [checkedOutById], references: [id], onDelete: SetNull)
+  owner        User?             @relation("DocumentOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  versions     DocumentVersion[]
+
+  @@index([companyId, deletedAt, status])
+  @@index([folderId])
+  @@map("documents")
+}
+
+/// One immutable revision of a Document. Versions are never edited or
+/// deleted — checking in always appends the next `versionNumber`, so the
+/// revision history is an append-only record, the same shape Logistics'
+/// delivery events use for a shipment's timeline.
+model DocumentVersion {
+  id            String   @id @default(uuid())
+  companyId     String   @map("company_id")
+  documentId    String   @map("document_id")
+  versionNumber Int      @map("version_number")
+  fileName      String   @map("file_name")
+  mimeType      String?  @map("mime_type")
+  sizeBytes     Int?     @map("size_bytes")
+  storageKey    String?  @map("storage_key")
+  note          String?
+  createdById   String?  @map("created_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  document  Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdBy User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([documentId, versionNumber])
+  @@index([documentId, versionNumber])
+  @@map("document_versions")
 }
