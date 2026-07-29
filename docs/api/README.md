@@ -1736,3 +1736,85 @@ folders, a documents list whose action buttons are lock-aware (check
 out when free, check in / cancel when you hold it, and an explicit
 "Locked by someone else" note when you do not), and a detail page with
 the full version history.
+
+## Subscription Billing (Milestone 7t — twentieth business module)
+
+Source: `apps/api/src/modules/billing/`.
+
+The first module built around **recurrence**. Everything before it acts on
+a record once; a subscription is billed again and again, so the two things
+that matter are that periods tile forward correctly and that a period is
+never charged twice.
+
+### Entities
+
+- **Subscription plans** (`subscription_plans`) — a `code` unique per
+  company, a `priceCents` per interval, a `billingInterval`
+  (`MONTHLY`/`QUARTERLY`/`YEARLY`), and optional `trialDays`. The interval
+  does double duty: it drives period arithmetic *and* the divisor used to
+  normalise MRR.
+- **Subscriptions** (`subscriptions`) — a customer account on a plan, with
+  `quantity` (seats), a `status`
+  (`TRIALING`/`ACTIVE`/`PAUSED`/`CANCELLED`/`EXPIRED`), and the
+  `currentPeriodStart`/`End` window the next bill will cover.
+- **Subscription invoices** (`subscription_invoices`) — links a billed
+  period to the Sales invoice raised for it, unique on
+  `(subscriptionId, periodStart)`.
+
+### Period arithmetic
+
+`addInterval` uses UTC **month** arithmetic rather than adding a fixed
+number of days, so a subscription started on the 15th bills on the 15th
+regardless of month length. The month-end case is deliberate rather than
+clamped: a period starting 31 January advances to 3 March in a non-leap
+year, because `Date.UTC` rolls the overflow forward. That keeps periods
+**contiguous** — the next period always begins exactly where the last one
+ended — which is the property the billing guarantee rests on. Clamping to
+28 February instead would silently drop three days of service.
+
+### Workflow: billing is the recurring action
+
+`POST /billing/subscriptions/:id/bill` does three things in one
+transaction: raises a real Sales `Invoice` (writing the Invoice table
+directly rather than injecting the Sales service — the same cross-module
+convention Purchase's `receive()` established), records a
+`SubscriptionInvoice` tying that invoice to the period, and advances the
+period by one interval.
+
+Charging the same period twice is prevented at two levels: a pre-check
+returns a clear **409**, and the unique key on
+`(subscriptionId, periodStart)` is what actually guarantees it if two
+calls race. Because billing always moves the cursor forward, that guard is
+only reachable when a call is duplicated or retried — which is precisely
+the case it exists for.
+
+A plan with `trialDays` starts the subscription `TRIALING`, and billing a
+trial is refused until `activate` converts it, so a trial cannot be
+invoiced by accident. `pause` stops billing without ending the
+subscription; `cancel` is terminal. Plans and subscriptions that carry
+history cannot be deleted — a plan's price and interval are what past
+invoices were computed from, so removing either would strand that record.
+Changing plan or account mid-subscription is likewise not an edit: it
+would reprice periods already invoiced, so it is a cancel plus a new
+subscription.
+
+### Reports
+
+`GET /billing/reports/summary` returns per-status counts, invoices raised,
+total billed, and **MRR normalised across intervals** — a yearly plan
+contributes a twelfth of its price each month and a quarterly plan a
+third, so subscriptions on different intervals sum on a common footing.
+Only `ACTIVE` subscriptions count toward it: trialing ones are not paying
+yet, and paused or cancelled ones are not billing at all, so folding any
+of them in would overstate recurring revenue. `arrCents` is the annualised
+companion figure. `GET /billing/reports/by-status` gives the count per
+`SubscriptionStatus`.
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/billing/` — an overview leading with MRR and
+spelling out what it excludes and why, a plans page with
+activate/deactivate, a subscriptions list whose actions follow the
+lifecycle (Activate for trials, Bill period / Pause for active, Resume for
+paused), and a subscription detail page showing the billing history with
+each period's generated invoice and its status.

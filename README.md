@@ -241,6 +241,20 @@ Built and reviewed one at a time, in this order:
             re-implemented. Full CRUD + GraphQL, summary/by-status
             reports, CSV export, RBAC, audit logging. See
             [docs/api](docs/api/README.md#document-management-system-milestone-7s--nineteenth-business-module).
+      - [x] **Subscription Billing** — the first module built around
+            recurrence. Plans carry a billing interval that drives both
+            period arithmetic and MRR normalisation; billing raises a
+            real Sales invoice, links it to the period, and advances the
+            period by exactly one interval, all in one transaction.
+            Periods tile contiguously (a 31 January start rolls to 3
+            March rather than clamping, so no service is dropped), and a
+            period can never be charged twice — enforced by a unique key
+            as well as a pre-check. Trials must be activated before they
+            can bill. MRR counts only active subscriptions, normalised
+            so yearly and quarterly plans sum with monthly ones. Full
+            CRUD + GraphQL, summary/by-status reports, CSV export, RBAC,
+            audit logging. See
+            [docs/api](docs/api/README.md#subscription-billing-milestone-7t--twentieth-business-module).
       - [ ] The rest.
 
 ## Getting started (local development)

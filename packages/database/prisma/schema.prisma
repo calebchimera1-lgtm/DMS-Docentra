@@ -261,6 +261,10 @@ model Company {
   documents        Document[]
   documentVersions DocumentVersion[]
 
+  subscriptionPlans    SubscriptionPlan[]
+  subscriptions        Subscription[]
+  subscriptionInvoices SubscriptionInvoice[]
+
   @@index([status])
   @@map("companies")
 }
@@ -679,6 +683,8 @@ model CrmAccount {
 
   shipments Shipment[]
 
+  subscriptions Subscription[]
+
   @@index([companyId, deletedAt])
   @@map("crm_accounts")
 }
@@ -885,6 +891,8 @@ model Invoice {
   salesOrder SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
   owner      User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   payments   Payment[]
+
+  subscriptionInvoice SubscriptionInvoice?
 
   @@unique([companyId, invoiceNumber])
   @@index([companyId, deletedAt, status])
@@ -2446,4 +2454,98 @@ model DocumentVersion {
   @@unique([documentId, versionNumber])
   @@index([documentId, versionNumber])
   @@map("document_versions")
+}
+
+enum BillingInterval {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAUSED
+  CANCELLED
+  EXPIRED
+}
+
+/// A priced, recurring offering. The `billingInterval` is what makes
+/// recurrence possible: it drives both the period arithmetic when a
+/// subscription is billed and the normalisation used to express every
+/// plan's contribution to MRR on a common monthly footing.
+model SubscriptionPlan {
+  id              String          @id @default(uuid())
+  companyId       String          @map("company_id")
+  code            String
+  name            String
+  description     String?
+  priceCents      Int             @map("price_cents")
+  currency        String          @default("USD")
+  billingInterval BillingInterval @default(MONTHLY) @map("billing_interval")
+  trialDays       Int             @default(0) @map("trial_days")
+  isActive        Boolean         @default(true) @map("is_active")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  deletedAt       DateTime?       @map("deleted_at")
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  subscriptions Subscription[]
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt, isActive])
+  @@map("subscription_plans")
+}
+
+/// A customer's ongoing enrolment in a plan. `currentPeriodStart`/`End`
+/// are the window the next bill covers; billing advances them by exactly
+/// one interval, so periods tile forward without gaps or overlaps.
+model Subscription {
+  id                 String             @id @default(uuid())
+  companyId          String             @map("company_id")
+  accountId          String             @map("account_id")
+  planId             String             @map("plan_id")
+  status             SubscriptionStatus @default(ACTIVE)
+  quantity           Int                @default(1)
+  startDate          DateTime           @map("start_date")
+  currentPeriodStart DateTime           @map("current_period_start")
+  currentPeriodEnd   DateTime           @map("current_period_end")
+  trialEndsAt        DateTime?          @map("trial_ends_at")
+  cancelledAt        DateTime?          @map("cancelled_at")
+  note               String?
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  deletedAt          DateTime?          @map("deleted_at")
+
+  company  Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account  CrmAccount            @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  plan     SubscriptionPlan      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  invoices SubscriptionInvoice[]
+
+  @@index([companyId, deletedAt, status])
+  @@index([accountId])
+  @@map("subscriptions")
+}
+
+/// Links a billed period to the Sales invoice raised for it. The unique
+/// key on (subscriptionId, periodStart) is what makes billing idempotent:
+/// a period can only ever be invoiced once, so a retried or duplicated
+/// call cannot double-charge the customer.
+model SubscriptionInvoice {
+  id             String   @id @default(uuid())
+  companyId      String   @map("company_id")
+  subscriptionId String   @map("subscription_id")
+  invoiceId      String   @unique @map("invoice_id")
+  periodStart    DateTime @map("period_start")
+  periodEnd      DateTime @map("period_end")
+  amountCents    Int      @map("amount_cents")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, periodStart])
+  @@index([subscriptionId, periodStart])
+  @@map("subscription_invoices")
 }

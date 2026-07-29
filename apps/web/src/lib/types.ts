@@ -1104,3 +1104,67 @@ export interface DocumentsByStatus {
   status: DocumentStatus;
   count: number;
 }
+
+export type BillingInterval = "MONTHLY" | "QUARTERLY" | "YEARLY";
+export type SubscriptionStatus = "TRIALING" | "ACTIVE" | "PAUSED" | "CANCELLED" | "EXPIRED";
+
+export interface SubscriptionPlan {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  priceCents: number;
+  currency: string;
+  billingInterval: BillingInterval;
+  trialDays: number;
+  isActive: boolean;
+  _count: { subscriptions: number };
+}
+
+export interface SubscriptionInvoiceEntry {
+  id: string;
+  periodStart: string;
+  periodEnd: string;
+  amountCents: number;
+  createdAt: string;
+  invoice: { id: string; invoiceNumber: string; status: InvoiceStatus; totalCents: number };
+}
+
+export interface Subscription {
+  id: string;
+  status: SubscriptionStatus;
+  quantity: number;
+  startDate: string;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  trialEndsAt: string | null;
+  cancelledAt: string | null;
+  note: string | null;
+  account: { id: string; name: string };
+  plan: {
+    id: string;
+    code: string;
+    name: string;
+    priceCents: number;
+    currency: string;
+    billingInterval: BillingInterval;
+  };
+  invoices: SubscriptionInvoiceEntry[];
+}
+
+export interface BillingSummary {
+  trialingCount: number;
+  activeCount: number;
+  pausedCount: number;
+  cancelledCount: number;
+  activePlanCount: number;
+  mrrCents: number;
+  arrCents: number;
+  invoicesRaised: number;
+  totalBilledCents: number;
+}
+
+export interface SubscriptionsByStatus {
+  status: SubscriptionStatus;
+  count: number;
+}

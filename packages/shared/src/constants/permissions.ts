@@ -68,6 +68,9 @@ export const PERMISSIONS = {
   DOCUMENTS_READ: "documents:read",
   DOCUMENTS_WRITE: "documents:write",
   DOCUMENTS_DELETE: "documents:delete",
+  BILLING_READ: "billing:read",
+  BILLING_WRITE: "billing:write",
+  BILLING_DELETE: "billing:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -472,5 +475,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "documents",
     action: "delete",
     description: "Delete a folder or document",
+  },
+  {
+    key: PERMISSIONS.BILLING_READ,
+    module: "billing",
+    action: "read",
+    description: "View subscription plans, subscriptions, and billing history",
+  },
+  {
+    key: PERMISSIONS.BILLING_WRITE,
+    module: "billing",
+    action: "write",
+    description: "Create and edit plans and subscriptions, and bill, pause, or cancel them",
+  },
+  {
+    key: PERMISSIONS.BILLING_DELETE,
+    module: "billing",
+    action: "delete",
+    description: "Delete a subscription plan or subscription",
   },
 ];

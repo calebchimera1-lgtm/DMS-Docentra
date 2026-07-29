@@ -18,6 +18,7 @@ import { AssetsModule } from "./modules/assets/assets.module";
 import { AttachmentsModule } from "./modules/attachments/attachments.module";
 import { AttendanceModule } from "./modules/attendance/attendance.module";
 import { AuthModule } from "./modules/auth/auth.module";
+import { BillingModule } from "./modules/billing/billing.module";
 import { BranchesModule } from "./modules/branches/branches.module";
 import { CommentsModule } from "./modules/comments/comments.module";
 import { ContractsModule } from "./modules/contracts/contracts.module";
@@ -102,6 +103,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
     FleetModule,
     LogisticsModule,
     DocumentsModule,
+    BillingModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },
