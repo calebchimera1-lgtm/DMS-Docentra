@@ -28,6 +28,7 @@ import { FleetModule } from "./modules/fleet/fleet.module";
 import { HealthModule } from "./modules/health/health.module";
 import { HrModule } from "./modules/hr/hr.module";
 import { InventoryModule } from "./modules/inventory/inventory.module";
+import { LogisticsModule } from "./modules/logistics/logistics.module";
 import { ManufacturingModule } from "./modules/manufacturing/manufacturing.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { PayrollModule } from "./modules/payroll/payroll.module";
@@ -98,6 +99,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
     PosModule,
     AttendanceModule,
     FleetModule,
+    LogisticsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AppThrottlerGuard },

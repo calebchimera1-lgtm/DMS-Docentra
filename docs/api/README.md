@@ -1573,3 +1573,84 @@ plus a vehicles-by-status bar chart) and three sub-pages behind a
 Manufacturing and POS: Vehicles (CRUD, retire/reactivate/delete),
 Trips (start, then an inline end-odometer input to complete), and
 Maintenance (schedule, start, then an inline cost input to complete).
+
+## Logistics & Delivery Tracking (Milestone 7r — eighteenth business module)
+
+Source: `apps/api/src/modules/logistics/`.
+
+The first module that composes three others at once: it moves stock out
+of Inventory, opens a trip in Fleet, and optionally settles against a
+Sales order — all inside a single transaction. It is also the first to
+keep an append-only event log rather than deriving history from the
+record's current status.
+
+### Entities
+
+- **Shipments** (`shipments`) — a `shipmentNumber` (via the shared
+  `formatDocumentNumber` helper, prefix `SHP`), the origin
+  `warehouseId`, a `destinationAddress` with optional contact details,
+  `items` as a priced `LineItem[]` JSON column (the same convention
+  `SalesOrder` and `PosSale` use), a `status`
+  (`DRAFT`/`DISPATCHED`/`IN_TRANSIT`/`DELIVERED`/`FAILED`/`CANCELLED`),
+  and optional links to a sales order, a CRM account, a Fleet vehicle
+  and driver, and the Fleet trip opened at dispatch.
+- **Delivery events** (`delivery_events`) — one row per workflow action,
+  carrying the status at the time plus an optional `location` and
+  `note`. Because every action appends one, the tracking timeline is a
+  record of what happened rather than a reconstruction.
+
+### Workflow: dispatch is where everything happens
+
+- `POST /logistics/shipments/:id/dispatch` (DRAFT → DISPATCHED) does
+  three things in one transaction: deducts each line item's stock at the
+  origin warehouse — posting the existing `SALE` `StockMovementType`
+  behind the same "Insufficient stock" guard POS sales and Manufacturing
+  work orders use — resolves the driver (explicit, else the shipment's,
+  else the vehicle's assigned driver), and, when a vehicle is assigned,
+  opens a Fleet `Trip` via a direct `tx.trip.create`, snapshotting the
+  vehicle's odometer. Writing into Fleet's table directly rather than
+  injecting Fleet's service is the same convention Purchase's `receive()`
+  established, and it is what lets the whole dispatch roll back as a
+  unit: a shipment that fails the stock check stays `DRAFT` with no trip
+  and no stock movement.
+  Dispatch is rejected outright if the vehicle is not `ACTIVE`, which is
+  what makes Fleet's maintenance window mutually exclusive with delivery
+  work.
+- **Closing the trip stays Fleet's job.** Delivering a shipment
+  deliberately does *not* complete the trip it opened, because completing
+  a trip requires a real end-odometer reading that only Fleet can supply.
+  Logistics opens the trip and links it; Fleet closes it.
+- `POST /logistics/shipments/:id/in-transit` and `.../deliver` advance
+  the status and append a located tracking event. `deliver` accepts both
+  `DISPATCHED` and `IN_TRANSIT`, since a short run may never report an
+  intermediate position.
+- `POST /logistics/shipments/:id/fail` (from `DISPATCHED` or
+  `IN_TRANSIT`) records why and returns the dispatched stock using the
+  existing `RETURN` movement type — the same restock shape POS uses for a
+  void or refund, since in both cases goods that left are coming back.
+- `cancel` is `DRAFT`-only (nothing has moved yet), editing is
+  `DRAFT`-only, and deleting is limited to `DRAFT` or `CANCELLED`.
+
+`LogisticsModule` registers no controller on the bare `logistics` root —
+`shipments` and `reports` are sibling literal sub-paths — so no `:id`
+wildcard exists for either to shadow, the same
+collision-avoidance-by-construction as every module since Projects.
+
+### Reports
+
+`GET /logistics/reports/summary` returns draft, in-flight (dispatched or
+in transit), delivered, failed, and total counts, plus a
+`deliveredRatePercent`. That rate is deliberately computed over finished
+attempts only — delivered ÷ (delivered + failed) — because a draft,
+in-flight, or cancelled shipment has not run its course, and folding
+those into the denominator would understate real delivery performance.
+`GET /logistics/reports/by-status` gives the count per `ShipmentStatus`.
+
+### Frontend
+
+`apps/web/src/app/(dashboard)/logistics/` — an overview page (stat tiles,
+the delivered rate with its exclusions spelled out, and a
+shipments-by-status chart), a shipments list with a line-item editor and
+per-row workflow buttons (including an inline reason input for Fail),
+and a shipment detail page whose centrepiece is the delivery tracking
+timeline, alongside the linked Fleet trip and the shipped line items.

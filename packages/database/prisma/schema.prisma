@@ -185,75 +185,77 @@ enum LeaveRequestStatus {
 /// A tenant on the platform. Every other table (directly or transitively)
 /// is scoped to a Company.
 model Company {
-  id         String        @id @default(uuid())
-  name       String
-  slug       String        @unique
-  legalName  String?
-  taxId      String?
-  currency   String        @default("USD")
-  timezone   String        @default("UTC")
-  logoUrl    String?
-  status     CompanyStatus @default(TRIAL)
-  createdAt  DateTime      @default(now()) @map("created_at")
-  updatedAt  DateTime      @updatedAt @map("updated_at")
-  deletedAt  DateTime?     @map("deleted_at")
+  id        String        @id @default(uuid())
+  name      String
+  slug      String        @unique
+  legalName String?
+  taxId     String?
+  currency  String        @default("USD")
+  timezone  String        @default("UTC")
+  logoUrl   String?
+  status    CompanyStatus @default(TRIAL)
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+  deletedAt DateTime?     @map("deleted_at")
 
-  branches      Branch[]
-  users         User[]
-  roles         Role[]
-  sessions      Session[]
-  auditLogs     AuditLog[]
-  notifications Notification[]
-  attachments   Attachment[]
-  comments      Comment[]
-  settings      Setting[]
-  plugins       CompanyPlugin[]
-  crmAccounts   CrmAccount[]
-  crmContacts   CrmContact[]
-  crmLeads      CrmLead[]
-  crmDeals      CrmDeal[]
-  products      Product[]
-  quotes        Quote[]
-  salesOrders   SalesOrder[]
-  invoices      Invoice[]
-  warehouses    Warehouse[]
-  stockItems    StockItem[]
-  stockMovements StockMovement[]
-  ledgerAccounts LedgerAccount[]
-  journalEntries JournalEntry[]
-  payments       Payment[]
-  departments    Department[]
-  employees      Employee[]
-  leaveRequests  LeaveRequest[]
-  projects       Project[]
-  projectTasks   ProjectTask[]
-  timeEntries    TimeEntry[]
-  tickets        Ticket[]
-  suppliers      Supplier[]
-  purchaseOrders PurchaseOrder[]
-  goodsReceipts  GoodsReceipt[]
-  salaryComponents SalaryComponent[]
-  payRuns          PayRun[]
-  payslips         Payslip[]
-  expenseCategories ExpenseCategory[]
-  expenseClaims     ExpenseClaim[]
-  assetCategories   AssetCategory[]
-  assets            Asset[]
-  depreciationRuns  DepreciationRun[]
-  depreciationLines DepreciationLine[]
-  jobPostings       JobPosting[]
-  candidates        Candidate[]
-  applications      Application[]
-  interviews        Interview[]
-  contracts         Contract[]
-  billsOfMaterial   BillOfMaterial[]
-  workOrders        WorkOrder[]
+  branches            Branch[]
+  users               User[]
+  roles               Role[]
+  sessions            Session[]
+  auditLogs           AuditLog[]
+  notifications       Notification[]
+  attachments         Attachment[]
+  comments            Comment[]
+  settings            Setting[]
+  plugins             CompanyPlugin[]
+  crmAccounts         CrmAccount[]
+  crmContacts         CrmContact[]
+  crmLeads            CrmLead[]
+  crmDeals            CrmDeal[]
+  products            Product[]
+  quotes              Quote[]
+  salesOrders         SalesOrder[]
+  invoices            Invoice[]
+  warehouses          Warehouse[]
+  stockItems          StockItem[]
+  stockMovements      StockMovement[]
+  ledgerAccounts      LedgerAccount[]
+  journalEntries      JournalEntry[]
+  payments            Payment[]
+  departments         Department[]
+  employees           Employee[]
+  leaveRequests       LeaveRequest[]
+  projects            Project[]
+  projectTasks        ProjectTask[]
+  timeEntries         TimeEntry[]
+  tickets             Ticket[]
+  suppliers           Supplier[]
+  purchaseOrders      PurchaseOrder[]
+  goodsReceipts       GoodsReceipt[]
+  salaryComponents    SalaryComponent[]
+  payRuns             PayRun[]
+  payslips            Payslip[]
+  expenseCategories   ExpenseCategory[]
+  expenseClaims       ExpenseClaim[]
+  assetCategories     AssetCategory[]
+  assets              Asset[]
+  depreciationRuns    DepreciationRun[]
+  depreciationLines   DepreciationLine[]
+  jobPostings         JobPosting[]
+  candidates          Candidate[]
+  applications        Application[]
+  interviews          Interview[]
+  contracts           Contract[]
+  billsOfMaterial     BillOfMaterial[]
+  workOrders          WorkOrder[]
   posRegisterSessions PosRegisterSession[]
   posSales            PosSale[]
   attendanceRecords   AttendanceRecord[]
   vehicles            Vehicle[]
   trips               Trip[]
   maintenanceRecords  MaintenanceRecord[]
+  shipments           Shipment[]
+  deliveryEvents      DeliveryEvent[]
 
   @@index([status])
   @@map("companies")
@@ -261,25 +263,25 @@ model Company {
 
 /// A physical or logical location within a Company (multi-branch support).
 model Branch {
-  id              String       @id @default(uuid())
-  companyId       String       @map("company_id")
-  name            String
-  code            String
-  isHeadquarters  Boolean      @default(false) @map("is_headquarters")
-  status          BranchStatus @default(ACTIVE)
-  addressLine1    String?      @map("address_line1")
-  addressLine2    String?      @map("address_line2")
-  city            String?
-  state           String?
-  country         String?
-  postalCode      String?      @map("postal_code")
-  phone           String?
-  email           String?
-  createdAt       DateTime     @default(now()) @map("created_at")
-  updatedAt       DateTime     @updatedAt @map("updated_at")
-  deletedAt       DateTime?    @map("deleted_at")
+  id             String       @id @default(uuid())
+  companyId      String       @map("company_id")
+  name           String
+  code           String
+  isHeadquarters Boolean      @default(false) @map("is_headquarters")
+  status         BranchStatus @default(ACTIVE)
+  addressLine1   String?      @map("address_line1")
+  addressLine2   String?      @map("address_line2")
+  city           String?
+  state          String?
+  country        String?
+  postalCode     String?      @map("postal_code")
+  phone          String?
+  email          String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  deletedAt      DateTime?    @map("deleted_at")
 
-  company   Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   users     UserBranch[]
   userRoles UserRole[]
 
@@ -295,60 +297,62 @@ model Branch {
 /// A platform user. Belongs to exactly one Company; access to specific
 /// branches is granted via UserBranch, and permissions via UserRole.
 model User {
-  id                   String     @id @default(uuid())
-  companyId            String     @map("company_id")
-  email                String     @unique
-  passwordHash         String     @map("password_hash")
-  firstName            String     @map("first_name")
-  lastName             String     @map("last_name")
-  phone                String?
-  avatarUrl            String?    @map("avatar_url")
-  status               UserStatus @default(PENDING_VERIFICATION)
-  emailVerifiedAt      DateTime?  @map("email_verified_at")
-  mfaEnabled           Boolean    @default(false) @map("mfa_enabled")
-  mfaSecret            String?    @map("mfa_secret")
-  failedLoginAttempts  Int        @default(0) @map("failed_login_attempts")
-  lockedUntil          DateTime?  @map("locked_until")
-  passwordChangedAt    DateTime?  @map("password_changed_at")
-  lastLoginAt          DateTime?  @map("last_login_at")
-  lastLoginIp          String?    @map("last_login_ip")
-  createdAt            DateTime   @default(now()) @map("created_at")
-  updatedAt            DateTime   @updatedAt @map("updated_at")
-  deletedAt            DateTime?  @map("deleted_at")
+  id                  String     @id @default(uuid())
+  companyId           String     @map("company_id")
+  email               String     @unique
+  passwordHash        String     @map("password_hash")
+  firstName           String     @map("first_name")
+  lastName            String     @map("last_name")
+  phone               String?
+  avatarUrl           String?    @map("avatar_url")
+  status              UserStatus @default(PENDING_VERIFICATION)
+  emailVerifiedAt     DateTime?  @map("email_verified_at")
+  mfaEnabled          Boolean    @default(false) @map("mfa_enabled")
+  mfaSecret           String?    @map("mfa_secret")
+  failedLoginAttempts Int        @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime?  @map("locked_until")
+  passwordChangedAt   DateTime?  @map("password_changed_at")
+  lastLoginAt         DateTime?  @map("last_login_at")
+  lastLoginIp         String?    @map("last_login_ip")
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+  deletedAt           DateTime?  @map("deleted_at")
 
-  company              Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branches             UserBranch[]
-  roles                UserRole[]
-  sessions             Session[]
-  mfaBackupCodes       MfaBackupCode[]
-  passwordResetTokens  PasswordResetToken[]
+  company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branches                UserBranch[]
+  roles                   UserRole[]
+  sessions                Session[]
+  mfaBackupCodes          MfaBackupCode[]
+  passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
-  notifications        Notification[]
-  ownedCrmAccounts      CrmAccount[]
-  ownedCrmContacts      CrmContact[]
-  ownedCrmLeads         CrmLead[]
-  ownedCrmDeals         CrmDeal[]
-  authoredComments      Comment[]
-  ownedQuotes           Quote[]
-  ownedSalesOrders      SalesOrder[]
-  ownedInvoices         Invoice[]
-  recordedStockMovements StockMovement[]
-  createdJournalEntries  JournalEntry[]
-  recordedPayments       Payment[]
-  employeeProfile        Employee?
-  ownedProjects          Project[]     @relation("ProjectOwner")
-  assignedTasks          ProjectTask[] @relation("TaskAssignee")
-  timeEntries            TimeEntry[]   @relation("TimeEntryUser")
-  assignedTickets        Ticket[]      @relation("TicketAssignee")
-  createdPurchaseOrders  PurchaseOrder[] @relation("PurchaseOrderCreatedBy")
-  receivedGoodsReceipts  GoodsReceipt[]  @relation("GoodsReceiptReceivedBy")
-  createdPayRuns         PayRun[]        @relation("PayRunCreatedBy")
-  createdDepreciationRuns DepreciationRun[] @relation("DepreciationRunCreatedBy")
+  notifications           Notification[]
+  ownedCrmAccounts        CrmAccount[]
+  ownedCrmContacts        CrmContact[]
+  ownedCrmLeads           CrmLead[]
+  ownedCrmDeals           CrmDeal[]
+  authoredComments        Comment[]
+  ownedQuotes             Quote[]
+  ownedSalesOrders        SalesOrder[]
+  ownedInvoices           Invoice[]
+  recordedStockMovements  StockMovement[]
+  createdJournalEntries   JournalEntry[]
+  recordedPayments        Payment[]
+  employeeProfile         Employee?
+  ownedProjects           Project[]                @relation("ProjectOwner")
+  assignedTasks           ProjectTask[]            @relation("TaskAssignee")
+  timeEntries             TimeEntry[]              @relation("TimeEntryUser")
+  assignedTickets         Ticket[]                 @relation("TicketAssignee")
+  createdPurchaseOrders   PurchaseOrder[]          @relation("PurchaseOrderCreatedBy")
+  receivedGoodsReceipts   GoodsReceipt[]           @relation("GoodsReceiptReceivedBy")
+  createdPayRuns          PayRun[]                 @relation("PayRunCreatedBy")
+  createdDepreciationRuns DepreciationRun[]        @relation("DepreciationRunCreatedBy")
   ownedContracts          Contract[]
-  createdWorkOrders       WorkOrder[] @relation("WorkOrderCreatedBy")
-  openedPosSessions       PosRegisterSession[] @relation("PosSessionOpenedBy")
-  closedPosSessions       PosRegisterSession[] @relation("PosSessionClosedBy")
-  posSales                PosSale[]            @relation("PosSaleSoldBy")
+  createdWorkOrders       WorkOrder[]              @relation("WorkOrderCreatedBy")
+  openedPosSessions       PosRegisterSession[]     @relation("PosSessionOpenedBy")
+  closedPosSessions       PosRegisterSession[]     @relation("PosSessionClosedBy")
+  posSales                PosSale[]                @relation("PosSaleSoldBy")
+
+  deliveryEvents DeliveryEvent[]
 
   @@index([companyId, status])
   @@map("users")
@@ -390,8 +394,8 @@ model Role {
 
 /// The global catalog of assignable permissions (seeded, not user-created).
 model Permission {
-  id          String @id @default(uuid())
-  key         String @unique
+  id          String  @id @default(uuid())
+  key         String  @unique
   module      String
   action      String
   description String?
@@ -438,17 +442,17 @@ model UserRole {
 
 /// A refresh-token-backed login session / device (session management).
 model Session {
-  id                String    @id @default(uuid())
-  userId            String    @map("user_id")
-  companyId         String    @map("company_id")
-  refreshTokenHash  String    @unique @map("refresh_token_hash")
-  deviceLabel       String?   @map("device_label")
-  userAgent         String?   @map("user_agent")
-  ipAddress         String?   @map("ip_address")
-  revokedAt         DateTime? @map("revoked_at")
-  expiresAt         DateTime  @map("expires_at")
-  lastUsedAt        DateTime  @default(now()) @map("last_used_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  companyId        String    @map("company_id")
+  refreshTokenHash String    @unique @map("refresh_token_hash")
+  deviceLabel      String?   @map("device_label")
+  userAgent        String?   @map("user_agent")
+  ipAddress        String?   @map("ip_address")
+  revokedAt        DateTime? @map("revoked_at")
+  expiresAt        DateTime  @map("expires_at")
+  lastUsedAt       DateTime  @default(now()) @map("last_used_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -549,20 +553,20 @@ model Notification {
 /// (entityType, entityId). Storage location is an S3-compatible key
 /// (works for both MinIO locally and AWS S3 in production).
 model Attachment {
-  id               String          @id @default(uuid())
-  companyId        String          @map("company_id")
-  uploadedById     String?         @map("uploaded_by_id")
-  entityType       String          @map("entity_type")
-  entityId         String          @map("entity_id")
-  fileName         String          @map("file_name")
-  originalName     String          @map("original_name")
-  mimeType         String          @map("mime_type")
-  sizeBytes        BigInt          @map("size_bytes")
-  storageProvider  StorageProvider @default(S3) @map("storage_provider")
-  storageKey       String          @map("storage_key")
-  checksum         String?
-  createdAt        DateTime        @default(now()) @map("created_at")
-  deletedAt        DateTime?       @map("deleted_at")
+  id              String          @id @default(uuid())
+  companyId       String          @map("company_id")
+  uploadedById    String?         @map("uploaded_by_id")
+  entityType      String          @map("entity_type")
+  entityId        String          @map("entity_id")
+  fileName        String          @map("file_name")
+  originalName    String          @map("original_name")
+  mimeType        String          @map("mime_type")
+  sizeBytes       BigInt          @map("size_bytes")
+  storageProvider StorageProvider @default(S3) @map("storage_provider")
+  storageKey      String          @map("storage_key")
+  checksum        String?
+  createdAt       DateTime        @default(now()) @map("created_at")
+  deletedAt       DateTime?       @map("deleted_at")
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
@@ -665,6 +669,8 @@ model CrmAccount {
   contracts   Contract[]
   posSales    PosSale[]
 
+  shipments Shipment[]
+
   @@index([companyId, deletedAt])
   @@map("crm_accounts")
 }
@@ -684,9 +690,9 @@ model CrmContact {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  account     CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  owner       User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account     CrmAccount?  @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  owner       User?        @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   deals       CrmDeal[]
   quotes      Quote[]
   salesOrders SalesOrder[]
@@ -754,24 +760,24 @@ model CrmDeal {
 
 /// A sellable item or service in the company's catalog.
 model Product {
-  id            String    @id @default(uuid())
-  companyId     String    @map("company_id")
-  sku           String
-  name          String
-  description   String?
-  unitPriceCents Int      @default(0) @map("unit_price_cents")
-  currency      String    @default("USD")
-  isActive      Boolean   @default(true) @map("is_active")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-  deletedAt     DateTime? @map("deleted_at")
+  id             String    @id @default(uuid())
+  companyId      String    @map("company_id")
+  sku            String
+  name           String
+  description    String?
+  unitPriceCents Int       @default(0) @map("unit_price_cents")
+  currency       String    @default("USD")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
 
-  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  stockItems     StockItem[]
-  stockMovements StockMovement[]
-  billsOfMaterial      BillOfMaterial[] @relation("BomOutputProduct")
-  bomLinesAsComponent  BomLine[]        @relation("BomComponentProduct")
-  workOrdersAsOutput   WorkOrder[]      @relation("WorkOrderOutputProduct")
+  company             Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  stockItems          StockItem[]
+  stockMovements      StockMovement[]
+  billsOfMaterial     BillOfMaterial[] @relation("BomOutputProduct")
+  bomLinesAsComponent BomLine[]        @relation("BomComponentProduct")
+  workOrdersAsOutput  WorkOrder[]      @relation("WorkOrderOutputProduct")
 
   @@unique([companyId, sku])
   @@index([companyId, deletedAt])
@@ -783,23 +789,23 @@ model Product {
 /// price/description never changes after the fact even if the underlying
 /// product is later repriced or renamed.
 model Quote {
-  id             String      @id @default(uuid())
-  companyId      String      @map("company_id")
-  accountId      String      @map("account_id")
-  contactId      String?     @map("contact_id")
-  quoteNumber    String      @map("quote_number")
-  status         QuoteStatus @default(DRAFT)
-  items          Json
-  subtotalCents  Int         @default(0) @map("subtotal_cents")
-  discountCents  Int         @default(0) @map("discount_cents")
-  taxCents       Int         @default(0) @map("tax_cents")
-  totalCents     Int         @default(0) @map("total_cents")
-  currency       String      @default("USD")
-  validUntil     DateTime?   @map("valid_until")
-  ownerId        String?     @map("owner_id")
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
-  deletedAt      DateTime?   @map("deleted_at")
+  id            String      @id @default(uuid())
+  companyId     String      @map("company_id")
+  accountId     String      @map("account_id")
+  contactId     String?     @map("contact_id")
+  quoteNumber   String      @map("quote_number")
+  status        QuoteStatus @default(DRAFT)
+  items         Json
+  subtotalCents Int         @default(0) @map("subtotal_cents")
+  discountCents Int         @default(0) @map("discount_cents")
+  taxCents      Int         @default(0) @map("tax_cents")
+  totalCents    Int         @default(0) @map("total_cents")
+  currency      String      @default("USD")
+  validUntil    DateTime?   @map("valid_until")
+  ownerId       String?     @map("owner_id")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  deletedAt     DateTime?   @map("deleted_at")
 
   company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   account    CrmAccount  @relation(fields: [accountId], references: [id], onDelete: Restrict)
@@ -836,6 +842,8 @@ model SalesOrder {
   quote   Quote?      @relation(fields: [quoteId], references: [id], onDelete: SetNull)
   owner   User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   invoice Invoice?
+
+  shipments Shipment[]
 
   @@unique([companyId, orderNumber])
   @@index([companyId, deletedAt, status])
@@ -891,14 +899,16 @@ model Warehouse {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  stockItems     StockItem[]
-  stockMovements StockMovement[]
-  purchaseOrders PurchaseOrder[]
-  goodsReceipts  GoodsReceipt[]
-  workOrders     WorkOrder[]
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  stockItems          StockItem[]
+  stockMovements      StockMovement[]
+  purchaseOrders      PurchaseOrder[]
+  goodsReceipts       GoodsReceipt[]
+  workOrders          WorkOrder[]
   posRegisterSessions PosRegisterSession[]
   posSales            PosSale[]
+
+  shipments Shipment[]
 
   @@unique([companyId, code])
   @@index([companyId, deletedAt])
@@ -972,14 +982,14 @@ model LedgerAccount {
   updatedAt DateTime          @updatedAt @map("updated_at")
   deletedAt DateTime?         @map("deleted_at")
 
-  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  journalLines  JournalLine[]
-  debitPayments  Payment[]     @relation("PaymentDebitAccount")
-  creditPayments Payment[]     @relation("PaymentCreditAccount")
-  expenseCategories ExpenseCategory[]
-  assetCategoriesAsAsset   AssetCategory[] @relation("AssetCategoryAssetAccount")
-  assetCategoriesAsExpense AssetCategory[] @relation("AssetCategoryDepreciationExpenseAccount")
-  assetCategoriesAsAccum   AssetCategory[] @relation("AssetCategoryAccumulatedDepreciationAccount")
+  company                  Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  journalLines             JournalLine[]
+  debitPayments            Payment[]         @relation("PaymentDebitAccount")
+  creditPayments           Payment[]         @relation("PaymentCreditAccount")
+  expenseCategories        ExpenseCategory[]
+  assetCategoriesAsAsset   AssetCategory[]   @relation("AssetCategoryAssetAccount")
+  assetCategoriesAsExpense AssetCategory[]   @relation("AssetCategoryDepreciationExpenseAccount")
+  assetCategoriesAsAccum   AssetCategory[]   @relation("AssetCategoryAccumulatedDepreciationAccount")
 
   @@unique([companyId, code])
   @@index([companyId, deletedAt, type])
@@ -1097,43 +1107,45 @@ model Department {
 /// who never gets system access), so name/email/phone are stored here
 /// too rather than assumed to come from the linked account.
 model Employee {
-  id               String         @id @default(uuid())
-  companyId        String         @map("company_id")
-  userId           String?        @unique @map("user_id")
-  departmentId     String?        @map("department_id")
-  managerId        String?        @map("manager_id")
-  employeeNumber   String         @map("employee_number")
-  firstName        String         @map("first_name")
-  lastName         String         @map("last_name")
-  email            String?
-  phone            String?
-  jobTitle         String?        @map("job_title")
-  employmentType   EmploymentType @default(FULL_TIME) @map("employment_type")
-  status           EmployeeStatus @default(ACTIVE)
-  hireDate         DateTime       @map("hire_date")
-  terminationDate  DateTime?      @map("termination_date")
-  salaryCents      Int?           @map("salary_cents")
-  currency         String         @default("USD")
-  createdAt        DateTime       @default(now()) @map("created_at")
-  updatedAt        DateTime       @updatedAt @map("updated_at")
-  deletedAt        DateTime?      @map("deleted_at")
+  id              String         @id @default(uuid())
+  companyId       String         @map("company_id")
+  userId          String?        @unique @map("user_id")
+  departmentId    String?        @map("department_id")
+  managerId       String?        @map("manager_id")
+  employeeNumber  String         @map("employee_number")
+  firstName       String         @map("first_name")
+  lastName        String         @map("last_name")
+  email           String?
+  phone           String?
+  jobTitle        String?        @map("job_title")
+  employmentType  EmploymentType @default(FULL_TIME) @map("employment_type")
+  status          EmployeeStatus @default(ACTIVE)
+  hireDate        DateTime       @map("hire_date")
+  terminationDate DateTime?      @map("termination_date")
+  salaryCents     Int?           @map("salary_cents")
+  currency        String         @default("USD")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  deletedAt       DateTime?      @map("deleted_at")
 
-  company               Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user                  User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
-  department            Department?    @relation("EmployeeDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
-  manager               Employee?      @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: SetNull)
-  directReports         Employee[]     @relation("EmployeeManager")
-  managedDepartments    Department[]   @relation("DepartmentManager")
-  leaveRequests         LeaveRequest[] @relation("LeaveRequester")
-  approvedLeaveRequests LeaveRequest[] @relation("LeaveApprover")
-  payslips              Payslip[]
-  expenseClaims         ExpenseClaim[] @relation("ExpenseClaimant")
-  approvedExpenseClaims ExpenseClaim[] @relation("ExpenseApprover")
-  interviewsAsInterviewer Interview[]  @relation("InterviewInterviewer")
-  hiredFromApplication  Application?
-  attendanceRecords     AttendanceRecord[]
-  assignedVehicles      Vehicle[] @relation("VehicleAssignedDriver")
-  tripsAsDriver         Trip[]    @relation("TripDriver")
+  company                 Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user                    User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  department              Department?        @relation("EmployeeDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
+  manager                 Employee?          @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: SetNull)
+  directReports           Employee[]         @relation("EmployeeManager")
+  managedDepartments      Department[]       @relation("DepartmentManager")
+  leaveRequests           LeaveRequest[]     @relation("LeaveRequester")
+  approvedLeaveRequests   LeaveRequest[]     @relation("LeaveApprover")
+  payslips                Payslip[]
+  expenseClaims           ExpenseClaim[]     @relation("ExpenseClaimant")
+  approvedExpenseClaims   ExpenseClaim[]     @relation("ExpenseApprover")
+  interviewsAsInterviewer Interview[]        @relation("InterviewInterviewer")
+  hiredFromApplication    Application?
+  attendanceRecords       AttendanceRecord[]
+  assignedVehicles        Vehicle[]          @relation("VehicleAssignedDriver")
+  tripsAsDriver           Trip[]             @relation("TripDriver")
+
+  shipmentsAsDriver Shipment[] @relation("ShipmentDriver")
 
   @@unique([companyId, employeeNumber])
   @@index([companyId, deletedAt, status])
@@ -1143,18 +1155,18 @@ model Employee {
 
 /// A time-off request against an Employee's record.
 model LeaveRequest {
-  id          String              @id @default(uuid())
-  companyId   String              @map("company_id")
-  employeeId  String              @map("employee_id")
-  type        LeaveType
-  startDate   DateTime            @map("start_date")
-  endDate     DateTime            @map("end_date")
-  status      LeaveRequestStatus  @default(PENDING)
-  reason      String?
-  approverId  String?             @map("approver_id")
-  reviewedAt  DateTime?           @map("reviewed_at")
-  createdAt   DateTime            @default(now()) @map("created_at")
-  updatedAt   DateTime            @updatedAt @map("updated_at")
+  id         String             @id @default(uuid())
+  companyId  String             @map("company_id")
+  employeeId String             @map("employee_id")
+  type       LeaveType
+  startDate  DateTime           @map("start_date")
+  endDate    DateTime           @map("end_date")
+  status     LeaveRequestStatus @default(PENDING)
+  reason     String?
+  approverId String?            @map("approver_id")
+  reviewedAt DateTime?          @map("reviewed_at")
+  createdAt  DateTime           @default(now()) @map("created_at")
+  updatedAt  DateTime           @updatedAt @map("updated_at")
 
   company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   employee Employee  @relation("LeaveRequester", fields: [employeeId], references: [id], onDelete: Cascade)
@@ -1210,9 +1222,9 @@ model Project {
   updatedAt   DateTime      @updatedAt @map("updated_at")
   deletedAt   DateTime?     @map("deleted_at")
 
-  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  account CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  owner   User?       @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account CrmAccount?   @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  owner   User?         @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   tasks   ProjectTask[]
 
   @@unique([companyId, code])
@@ -1381,11 +1393,11 @@ model PurchaseOrder {
   updatedAt     DateTime            @updatedAt @map("updated_at")
   deletedAt     DateTime?           @map("deleted_at")
 
-  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  supplier      Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict)
-  warehouse     Warehouse?     @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
-  createdBy     User?          @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  goodsReceipt  GoodsReceipt?
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier     Supplier      @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  warehouse    Warehouse?    @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  createdBy    User?         @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  goodsReceipt GoodsReceipt?
 
   @@unique([companyId, orderNumber])
   @@index([companyId, deletedAt, status])
@@ -1621,24 +1633,24 @@ enum DepreciationRunStatus {
 /// still allows registering assets — it only blocks depreciate/dispose,
 /// the same "unmapped category" pattern Expenses applies.
 model AssetCategory {
-  id                              String    @id @default(uuid())
-  companyId                       String    @map("company_id")
-  name                            String
-  code                            String
-  defaultUsefulLifeMonths         Int       @default(36) @map("default_useful_life_months")
-  assetAccountId                  String?   @map("asset_account_id")
-  depreciationExpenseAccountId    String?   @map("depreciation_expense_account_id")
-  accumulatedDepreciationAccountId String?  @map("accumulated_depreciation_account_id")
-  isActive                        Boolean   @default(true) @map("is_active")
-  createdAt                       DateTime  @default(now()) @map("created_at")
-  updatedAt                       DateTime  @updatedAt @map("updated_at")
-  deletedAt                       DateTime? @map("deleted_at")
+  id                               String    @id @default(uuid())
+  companyId                        String    @map("company_id")
+  name                             String
+  code                             String
+  defaultUsefulLifeMonths          Int       @default(36) @map("default_useful_life_months")
+  assetAccountId                   String?   @map("asset_account_id")
+  depreciationExpenseAccountId     String?   @map("depreciation_expense_account_id")
+  accumulatedDepreciationAccountId String?   @map("accumulated_depreciation_account_id")
+  isActive                         Boolean   @default(true) @map("is_active")
+  createdAt                        DateTime  @default(now()) @map("created_at")
+  updatedAt                        DateTime  @updatedAt @map("updated_at")
+  deletedAt                        DateTime? @map("deleted_at")
 
-  company                       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  assetAccount                  LedgerAccount? @relation("AssetCategoryAssetAccount", fields: [assetAccountId], references: [id], onDelete: SetNull)
-  depreciationExpenseAccount    LedgerAccount? @relation("AssetCategoryDepreciationExpenseAccount", fields: [depreciationExpenseAccountId], references: [id], onDelete: SetNull)
+  company                        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assetAccount                   LedgerAccount? @relation("AssetCategoryAssetAccount", fields: [assetAccountId], references: [id], onDelete: SetNull)
+  depreciationExpenseAccount     LedgerAccount? @relation("AssetCategoryDepreciationExpenseAccount", fields: [depreciationExpenseAccountId], references: [id], onDelete: SetNull)
   accumulatedDepreciationAccount LedgerAccount? @relation("AssetCategoryAccumulatedDepreciationAccount", fields: [accumulatedDepreciationAccountId], references: [id], onDelete: SetNull)
-  assets                        Asset[]
+  assets                         Asset[]
 
   @@unique([companyId, code])
   @@index([companyId, deletedAt])
@@ -1650,30 +1662,30 @@ model AssetCategory {
 /// (e.g. via Purchase + a Payment), so Assets stays focused on tracking
 /// depreciation and disposal rather than double-booking the acquisition.
 model Asset {
-  id                            String      @id @default(uuid())
-  companyId                     String      @map("company_id")
-  categoryId                    String      @map("category_id")
-  assetNumber                   String      @map("asset_number")
-  name                          String
-  purchaseDate                  DateTime    @map("purchase_date")
-  purchaseCostCents             Int         @map("purchase_cost_cents")
-  salvageValueCents             Int         @default(0) @map("salvage_value_cents")
-  usefulLifeMonths              Int         @map("useful_life_months")
-  accumulatedDepreciationCents  Int         @default(0) @map("accumulated_depreciation_cents")
-  currency                      String      @default("USD")
-  status                        AssetStatus @default(ACTIVE)
-  disposalDate                  DateTime?   @map("disposal_date")
-  disposalProceedsCents         Int?        @map("disposal_proceeds_cents")
-  disposalJournalEntryId        String?     @unique @map("disposal_journal_entry_id")
-  note                          String?
-  createdAt                     DateTime    @default(now()) @map("created_at")
-  updatedAt                     DateTime    @updatedAt @map("updated_at")
-  deletedAt                     DateTime?   @map("deleted_at")
+  id                           String      @id @default(uuid())
+  companyId                    String      @map("company_id")
+  categoryId                   String      @map("category_id")
+  assetNumber                  String      @map("asset_number")
+  name                         String
+  purchaseDate                 DateTime    @map("purchase_date")
+  purchaseCostCents            Int         @map("purchase_cost_cents")
+  salvageValueCents            Int         @default(0) @map("salvage_value_cents")
+  usefulLifeMonths             Int         @map("useful_life_months")
+  accumulatedDepreciationCents Int         @default(0) @map("accumulated_depreciation_cents")
+  currency                     String      @default("USD")
+  status                       AssetStatus @default(ACTIVE)
+  disposalDate                 DateTime?   @map("disposal_date")
+  disposalProceedsCents        Int?        @map("disposal_proceeds_cents")
+  disposalJournalEntryId       String?     @unique @map("disposal_journal_entry_id")
+  note                         String?
+  createdAt                    DateTime    @default(now()) @map("created_at")
+  updatedAt                    DateTime    @updatedAt @map("updated_at")
+  deletedAt                    DateTime?   @map("deleted_at")
 
-  company             Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  category            AssetCategory      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  disposalJournalEntry JournalEntry?     @relation(fields: [disposalJournalEntryId], references: [id], onDelete: SetNull)
-  depreciationLines   DepreciationLine[]
+  company              Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category             AssetCategory      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  disposalJournalEntry JournalEntry?      @relation(fields: [disposalJournalEntryId], references: [id], onDelete: SetNull)
+  depreciationLines    DepreciationLine[]
 
   @@unique([companyId, assetNumber])
   @@index([companyId, deletedAt, status])
@@ -1687,15 +1699,15 @@ model Asset {
 /// same dedicated-action precedent as PurchaseOrder's receive and
 /// Payroll's PayRun.generate.
 model DepreciationRun {
-  id             String                 @id @default(uuid())
-  companyId      String                 @map("company_id")
-  createdById    String?                @map("created_by_id")
-  periodDate     DateTime               @map("period_date")
-  status         DepreciationRunStatus  @default(DRAFT)
-  journalEntryId String?                @unique @map("journal_entry_id")
-  createdAt      DateTime               @default(now()) @map("created_at")
-  updatedAt      DateTime               @updatedAt @map("updated_at")
-  deletedAt      DateTime?              @map("deleted_at")
+  id             String                @id @default(uuid())
+  companyId      String                @map("company_id")
+  createdById    String?               @map("created_by_id")
+  periodDate     DateTime              @map("period_date")
+  status         DepreciationRunStatus @default(DRAFT)
+  journalEntryId String?               @unique @map("journal_entry_id")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+  deletedAt      DateTime?             @map("deleted_at")
 
   company      Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   createdBy    User?              @relation("DepreciationRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
@@ -1833,21 +1845,21 @@ model Application {
 /// optional since an interview can be scheduled before an interviewer is
 /// assigned.
 model Interview {
-  id             String          @id @default(uuid())
-  companyId      String          @map("company_id")
-  applicationId  String          @map("application_id")
-  interviewerId  String?         @map("interviewer_id")
-  stage          String
-  scheduledAt    DateTime        @map("scheduled_at")
-  status         InterviewStatus @default(SCHEDULED)
-  feedback       String?
-  rating         Int?
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
+  id            String          @id @default(uuid())
+  companyId     String          @map("company_id")
+  applicationId String          @map("application_id")
+  interviewerId String?         @map("interviewer_id")
+  stage         String
+  scheduledAt   DateTime        @map("scheduled_at")
+  status        InterviewStatus @default(SCHEDULED)
+  feedback      String?
+  rating        Int?
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
 
-  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  application Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  interviewer Employee?    @relation("InterviewInterviewer", fields: [interviewerId], references: [id], onDelete: SetNull)
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  interviewer Employee?   @relation("InterviewInterviewer", fields: [interviewerId], references: [id], onDelete: SetNull)
 
   @@index([companyId, applicationId])
   @@map("interviews")
@@ -1904,11 +1916,11 @@ model Contract {
   updatedAt         DateTime       @updatedAt @map("updated_at")
   deletedAt         DateTime?      @map("deleted_at")
 
-  company           Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company           Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   account           CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  owner             User?      @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  parentContract    Contract?  @relation("ContractRenewal", fields: [parentContractId], references: [id], onDelete: SetNull)
-  renewedAsContract Contract?  @relation("ContractRenewal")
+  owner             User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  parentContract    Contract?   @relation("ContractRenewal", fields: [parentContractId], references: [id], onDelete: SetNull)
+  renewedAsContract Contract?   @relation("ContractRenewal")
 
   @@unique([companyId, contractNumber])
   @@index([companyId, deletedAt, status])
@@ -2189,10 +2201,11 @@ model Vehicle {
   updatedAt          DateTime      @updatedAt @map("updated_at")
   deletedAt          DateTime?     @map("deleted_at")
 
-  company           Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
   assignedDriver     Employee?           @relation("VehicleAssignedDriver", fields: [assignedDriverId], references: [id], onDelete: SetNull)
   trips              Trip[]
   maintenanceRecords MaintenanceRecord[]
+  shipments          Shipment[]
 
   @@unique([companyId, registrationNumber])
   @@index([companyId, deletedAt, status])
@@ -2226,6 +2239,8 @@ model Trip {
   vehicle Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
   driver  Employee? @relation("TripDriver", fields: [driverId], references: [id], onDelete: SetNull)
 
+  shipment Shipment?
+
   @@index([companyId, deletedAt, status])
   @@index([vehicleId])
   @@map("trips")
@@ -2257,4 +2272,82 @@ model MaintenanceRecord {
   @@index([companyId, deletedAt, status])
   @@index([vehicleId])
   @@map("maintenance_records")
+}
+
+enum ShipmentStatus {
+  DRAFT
+  DISPATCHED
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
+/// An outbound delivery of goods from a Warehouse to a destination.
+/// `dispatch` (DRAFT -> DISPATCHED) is the pivotal action: it deducts the
+/// line items' stock using the same SALE StockMovementType and
+/// "Insufficient stock" guard as POS sales, and — when a vehicle is
+/// assigned — opens a Fleet Trip via a direct `tx.trip.create`, the same
+/// cross-module-write-inside-a-transaction convention Purchase's receive()
+/// established. Delivering does *not* close that trip: completing a trip
+/// needs a real end-odometer reading only Fleet can supply, so the trip
+/// stays Fleet's to close.
+model Shipment {
+  id                 String         @id @default(uuid())
+  companyId          String         @map("company_id")
+  shipmentNumber     String         @map("shipment_number")
+  salesOrderId       String?        @map("sales_order_id")
+  accountId          String?        @map("account_id")
+  warehouseId        String         @map("warehouse_id")
+  vehicleId          String?        @map("vehicle_id")
+  driverId           String?        @map("driver_id")
+  tripId             String?        @unique @map("trip_id")
+  status             ShipmentStatus @default(DRAFT)
+  items              Json
+  destinationAddress String         @map("destination_address")
+  contactName        String?        @map("contact_name")
+  contactPhone       String?        @map("contact_phone")
+  scheduledDate      DateTime?      @map("scheduled_date")
+  dispatchedAt       DateTime?      @map("dispatched_at")
+  deliveredAt        DateTime?      @map("delivered_at")
+  failureReason      String?        @map("failure_reason")
+  note               String?
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+  deletedAt          DateTime?      @map("deleted_at")
+
+  company    Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  salesOrder SalesOrder?     @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  account    CrmAccount?     @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  warehouse  Warehouse       @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  vehicle    Vehicle?        @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  driver     Employee?       @relation("ShipmentDriver", fields: [driverId], references: [id], onDelete: SetNull)
+  trip       Trip?           @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  events     DeliveryEvent[]
+
+  @@unique([companyId, shipmentNumber])
+  @@index([companyId, deletedAt, status])
+  @@index([warehouseId])
+  @@map("shipments")
+}
+
+/// One entry in a shipment's tracking timeline. Every workflow action
+/// appends one, so the delivery history is an append-only record rather
+/// than something reconstructed from the shipment's current status.
+model DeliveryEvent {
+  id          String         @id @default(uuid())
+  companyId   String         @map("company_id")
+  shipmentId  String         @map("shipment_id")
+  status      ShipmentStatus
+  location    String?
+  note        String?
+  occurredAt  DateTime       @default(now()) @map("occurred_at")
+  createdById String?        @map("created_by_id")
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  shipment  Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  createdBy User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([shipmentId, occurredAt])
+  @@map("delivery_events")
 }

@@ -62,6 +62,9 @@ export const PERMISSIONS = {
   FLEET_READ: "fleet:read",
   FLEET_WRITE: "fleet:write",
   FLEET_DELETE: "fleet:delete",
+  LOGISTICS_READ: "logistics:read",
+  LOGISTICS_WRITE: "logistics:write",
+  LOGISTICS_DELETE: "logistics:delete",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -430,5 +433,23 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     module: "fleet",
     action: "delete",
     description: "Delete a vehicle, trip, or maintenance record",
+  },
+  {
+    key: PERMISSIONS.LOGISTICS_READ,
+    module: "logistics",
+    action: "read",
+    description: "View shipments and their delivery tracking timeline",
+  },
+  {
+    key: PERMISSIONS.LOGISTICS_WRITE,
+    module: "logistics",
+    action: "write",
+    description: "Create and edit shipments, and dispatch, track, or deliver them",
+  },
+  {
+    key: PERMISSIONS.LOGISTICS_DELETE,
+    module: "logistics",
+    action: "delete",
+    description: "Delete a shipment",
   },
 ];

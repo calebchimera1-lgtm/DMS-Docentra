@@ -1003,3 +1003,49 @@ export interface VehiclesByStatus {
   status: VehicleStatus;
   count: number;
 }
+
+export type ShipmentStatus = "DRAFT" | "DISPATCHED" | "IN_TRANSIT" | "DELIVERED" | "FAILED" | "CANCELLED";
+
+export interface DeliveryEvent {
+  id: string;
+  status: ShipmentStatus;
+  location: string | null;
+  note: string | null;
+  occurredAt: string;
+}
+
+export interface Shipment {
+  id: string;
+  shipmentNumber: string;
+  status: ShipmentStatus;
+  items: LineItem[];
+  destinationAddress: string;
+  contactName: string | null;
+  contactPhone: string | null;
+  scheduledDate: string | null;
+  dispatchedAt: string | null;
+  deliveredAt: string | null;
+  failureReason: string | null;
+  note: string | null;
+  warehouse: { id: string; name: string; code: string };
+  account: { id: string; name: string } | null;
+  salesOrder: { id: string; orderNumber: string } | null;
+  vehicle: { id: string; registrationNumber: string; make: string; model: string } | null;
+  driver: HrEmployeeRef | null;
+  trip: { id: string; status: TripStatus; startOdometer: number } | null;
+  events: DeliveryEvent[];
+}
+
+export interface LogisticsSummary {
+  draftCount: number;
+  inFlightCount: number;
+  deliveredCount: number;
+  failedCount: number;
+  totalCount: number;
+  deliveredRatePercent: number;
+}
+
+export interface ShipmentsByStatus {
+  status: ShipmentStatus;
+  count: number;
+}

@@ -215,6 +215,20 @@ Built and reviewed one at a time, in this order:
             summary/by-status reports, CSV export, RBAC, audit
             logging. See
             [docs/api](docs/api/README.md#fleet-management-milestone-7q--seventeenth-business-module).
+      - [x] **Logistics & Delivery Tracking** — shipments that carry
+            goods from a warehouse to a destination, with an
+            append-only delivery tracking timeline. Dispatching is the
+            pivotal action and composes three modules in one
+            transaction: it deducts Inventory stock, opens a Fleet trip
+            on the assigned vehicle (which must be active), and can
+            settle against a Sales order — rolling back as a unit if
+            stock is short. A failed delivery returns the stock.
+            Closing the trip stays Fleet's job, since that needs a real
+            end-odometer reading. Full CRUD + GraphQL,
+            summary/by-status reports with a delivered rate computed
+            over finished attempts only, CSV export, RBAC, audit
+            logging. See
+            [docs/api](docs/api/README.md#logistics--delivery-tracking-milestone-7r--eighteenth-business-module).
       - [ ] The rest.
 
 ## Getting started (local development)
