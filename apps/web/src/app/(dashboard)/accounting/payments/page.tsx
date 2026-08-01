@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Download, Plus } from "lucide-react";
 import { PERMISSIONS } from "@omniflow/shared";
-import { Button, Card, CardContent, Input } from "@omniflow/ui";
+import { Button, Card, CardContent, Input, Pagination } from "@omniflow/ui";
 import { ApiError, apiClient } from "../../../../lib/api-client";
 import { downloadCsv, formatCents } from "../../../../lib/format";
 import type { Invoice, LedgerAccount, Paginated, Payment } from "../../../../lib/types";
@@ -17,6 +17,7 @@ export default function PaymentsPage() {
   const [result, setResult] = useState<Paginated<Payment> | null>(null);
   const [ledgerAccounts, setLedgerAccounts] = useState<LedgerAccount[]>([]);
   const [unpaidInvoices, setUnpaidInvoices] = useState<Invoice[]>([]);
+  const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
 
   const [amountDollars, setAmountDollars] = useState("");
@@ -29,10 +30,11 @@ export default function PaymentsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
-    void apiClient.get<Paginated<Payment>>("/accounting/payments?page=1&pageSize=50").then(setResult);
+    const qs = new URLSearchParams({ page: String(page), pageSize: "50" });
+    void apiClient.get<Paginated<Payment>>(`/accounting/payments?${qs}`).then(setResult);
   };
 
-  useEffect(load, []);
+  useEffect(load, [page]);
   useEffect(() => {
     void apiClient
       .get<Paginated<LedgerAccount>>("/accounting/ledger-accounts?page=1&pageSize=100")
@@ -201,6 +203,15 @@ export default function PaymentsPage() {
               )}
             </tbody>
           </table>
+          {result && (
+            <Pagination
+              page={result.page}
+              totalPages={result.totalPages}
+              total={result.total}
+              pageSize={result.pageSize}
+              onPageChange={setPage}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Download, Plus } from "lucide-react";
 import { PERMISSIONS } from "@omniflow/shared";
-import { Badge, Button, Card, CardContent, Input } from "@omniflow/ui";
+import { Badge, Button, Card, CardContent, Input, Pagination } from "@omniflow/ui";
 import { apiClient } from "../../../../lib/api-client";
 import { downloadCsv, formatCents } from "../../../../lib/format";
 import type { CrmAccount, Paginated, Quote, QuoteStatus } from "../../../../lib/types";
@@ -26,6 +26,7 @@ export default function QuotesPage() {
   const [accounts, setAccounts] = useState<CrmAccount[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [accountId, setAccountId] = useState("");
   const [lineItems, setLineItems] = useState<DraftLineItem[]>([emptyLineItem()]);
@@ -33,13 +34,14 @@ export default function QuotesPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
-    const qs = new URLSearchParams({ page: "1", pageSize: "50" });
+    const qs = new URLSearchParams({ page: String(page), pageSize: "50" });
     if (search) qs.set("search", search);
     if (status) qs.set("status", status);
     void apiClient.get<Paginated<Quote>>(`/sales/quotes?${qs}`).then(setResult);
   };
 
-  useEffect(load, [search, status]);
+  useEffect(load, [search, status, page]);
+  useEffect(() => setPage(1), [search, status]);
   useEffect(() => {
     void apiClient
       .get<Paginated<CrmAccount>>("/crm/accounts?page=1&pageSize=100")
@@ -217,6 +219,15 @@ export default function QuotesPage() {
               )}
             </tbody>
           </table>
+          {result && (
+            <Pagination
+              page={result.page}
+              totalPages={result.totalPages}
+              total={result.total}
+              pageSize={result.pageSize}
+              onPageChange={setPage}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

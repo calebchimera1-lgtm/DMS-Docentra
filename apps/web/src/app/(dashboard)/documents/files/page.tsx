@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Download, Lock, Plus } from "lucide-react";
 import { PERMISSIONS } from "@omniflow/shared";
-import { Badge, Button, Card, CardContent, Input } from "@omniflow/ui";
+import { Badge, Button, Card, CardContent, Input, Pagination } from "@omniflow/ui";
 import { ApiError, apiClient } from "../../../../lib/api-client";
 import { downloadCsv } from "../../../../lib/format";
 import type { DocumentFolder, DocumentStatus, ManagedDocument, Paginated } from "../../../../lib/types";
@@ -19,6 +19,7 @@ export default function DocumentsListPage() {
   const [result, setResult] = useState<Paginated<ManagedDocument> | null>(null);
   const [folders, setFolders] = useState<DocumentFolder[]>([]);
   const [statusFilter, setStatusFilter] = useState<DocumentStatus | "">("");
+  const [page, setPage] = useState(1);
 
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState("");
@@ -34,12 +35,13 @@ export default function DocumentsListPage() {
   const [versionNote, setVersionNote] = useState("");
 
   const load = () => {
-    const qs = new URLSearchParams({ page: "1", pageSize: "50" });
+    const qs = new URLSearchParams({ page: String(page), pageSize: "50" });
     if (statusFilter) qs.set("status", statusFilter);
     void apiClient.get<Paginated<ManagedDocument>>(`/documents/files?${qs}`).then(setResult);
   };
 
-  useEffect(load, [statusFilter]);
+  useEffect(load, [statusFilter, page]);
+  useEffect(() => setPage(1), [statusFilter]);
   useEffect(() => {
     void apiClient
       .get<Paginated<DocumentFolder>>("/documents/folders?page=1&pageSize=100")
@@ -310,6 +312,15 @@ export default function DocumentsListPage() {
               )}
             </tbody>
           </table>
+          {result && (
+            <Pagination
+              page={result.page}
+              totalPages={result.totalPages}
+              total={result.total}
+              pageSize={result.pageSize}
+              onPageChange={setPage}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

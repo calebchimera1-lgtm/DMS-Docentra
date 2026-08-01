@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { Download, Plus } from "lucide-react";
 import { PERMISSIONS } from "@omniflow/shared";
-import { Badge, Button, Card, CardContent, Input } from "@omniflow/ui";
+import { Badge, Button, Card, CardContent, Input, Pagination } from "@omniflow/ui";
 import { ApiError, apiClient } from "../../../../lib/api-client";
 import { downloadCsv, formatCents } from "../../../../lib/format";
 import type { JournalEntry, LedgerAccount, Paginated } from "../../../../lib/types";
@@ -23,6 +23,7 @@ export default function JournalEntriesPage() {
   const [result, setResult] = useState<Paginated<JournalEntry> | null>(null);
   const [ledgerAccounts, setLedgerAccounts] = useState<LedgerAccount[]>([]);
   const [status, setStatus] = useState("");
+  const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [entryDate, setEntryDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -32,12 +33,13 @@ export default function JournalEntriesPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
-    const qs = new URLSearchParams({ page: "1", pageSize: "50" });
+    const qs = new URLSearchParams({ page: String(page), pageSize: "50" });
     if (status) qs.set("status", status);
     void apiClient.get<Paginated<JournalEntry>>(`/accounting/journal-entries?${qs}`).then(setResult);
   };
 
-  useEffect(load, [status]);
+  useEffect(load, [status, page]);
+  useEffect(() => setPage(1), [status]);
   useEffect(() => {
     void apiClient
       .get<Paginated<LedgerAccount>>("/accounting/ledger-accounts?page=1&pageSize=100")
@@ -225,6 +227,15 @@ export default function JournalEntriesPage() {
               )}
             </tbody>
           </table>
+          {result && (
+            <Pagination
+              page={result.page}
+              totalPages={result.totalPages}
+              total={result.total}
+              pageSize={result.pageSize}
+              onPageChange={setPage}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

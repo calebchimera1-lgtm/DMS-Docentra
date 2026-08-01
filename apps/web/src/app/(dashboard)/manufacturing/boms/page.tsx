@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { Download, Plus, Trash2 } from "lucide-react";
 import { PERMISSIONS } from "@omniflow/shared";
-import { Badge, Button, Card, CardContent, Input } from "@omniflow/ui";
+import { Badge, Button, Card, CardContent, Input, Pagination } from "@omniflow/ui";
 import { ApiError, apiClient } from "../../../../lib/api-client";
 import { downloadCsv } from "../../../../lib/format";
 import type { Bom, Paginated, Product } from "../../../../lib/types";
@@ -26,6 +26,7 @@ export default function BomsPage() {
   const [result, setResult] = useState<Paginated<Bom> | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
 
   const [showCreate, setShowCreate] = useState(false);
   const [productId, setProductId] = useState("");
@@ -35,10 +36,11 @@ export default function BomsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
-    void apiClient.get<Paginated<Bom>>("/manufacturing/boms?page=1&pageSize=50").then(setResult);
+    const qs = new URLSearchParams({ page: String(page), pageSize: "50" });
+    void apiClient.get<Paginated<Bom>>(`/manufacturing/boms?${qs}`).then(setResult);
   };
 
-  useEffect(load, []);
+  useEffect(load, [page]);
   useEffect(() => {
     void apiClient.get<Paginated<Product>>("/sales/products?page=1&pageSize=100").then((r) => setProducts(r.items));
   }, []);
@@ -237,6 +239,15 @@ export default function BomsPage() {
               )}
             </tbody>
           </table>
+          {result && (
+            <Pagination
+              page={result.page}
+              totalPages={result.totalPages}
+              total={result.total}
+              pageSize={result.pageSize}
+              onPageChange={setPage}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

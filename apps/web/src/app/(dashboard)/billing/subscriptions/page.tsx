@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Download, Plus } from "lucide-react";
 import { PERMISSIONS } from "@omniflow/shared";
-import { Badge, Button, Card, CardContent, Input } from "@omniflow/ui";
+import { Badge, Button, Card, CardContent, Input, Pagination } from "@omniflow/ui";
 import { ApiError, apiClient } from "../../../../lib/api-client";
 import { downloadCsv, formatCents } from "../../../../lib/format";
 import type {
@@ -26,6 +26,7 @@ export default function SubscriptionsPage() {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [accounts, setAccounts] = useState<CrmAccount[]>([]);
   const [statusFilter, setStatusFilter] = useState<SubscriptionStatus | "">("");
+  const [page, setPage] = useState(1);
 
   const [showCreate, setShowCreate] = useState(false);
   const [accountId, setAccountId] = useState("");
@@ -36,12 +37,13 @@ export default function SubscriptionsPage() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const load = () => {
-    const qs = new URLSearchParams({ page: "1", pageSize: "50" });
+    const qs = new URLSearchParams({ page: String(page), pageSize: "50" });
     if (statusFilter) qs.set("status", statusFilter);
     void apiClient.get<Paginated<Subscription>>(`/billing/subscriptions?${qs}`).then(setResult);
   };
 
-  useEffect(load, [statusFilter]);
+  useEffect(load, [statusFilter, page]);
+  useEffect(() => setPage(1), [statusFilter]);
   useEffect(() => {
     void apiClient
       .get<Paginated<SubscriptionPlan>>("/billing/plans?page=1&pageSize=100&isActive=true")
@@ -266,6 +268,15 @@ export default function SubscriptionsPage() {
               )}
             </tbody>
           </table>
+          {result && (
+            <Pagination
+              page={result.page}
+              totalPages={result.totalPages}
+              total={result.total}
+              pageSize={result.pageSize}
+              onPageChange={setPage}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

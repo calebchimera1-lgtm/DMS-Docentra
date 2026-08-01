@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import { PERMISSIONS } from "@omniflow/shared";
-import { Badge, Button, Card, CardContent, Input } from "@omniflow/ui";
+import { Badge, Button, Card, CardContent, Input, Pagination } from "@omniflow/ui";
 import { apiClient } from "../../../../lib/api-client";
 import { downloadCsv, formatCents } from "../../../../lib/format";
 import type { Invoice, InvoiceStatus, Paginated } from "../../../../lib/types";
@@ -19,15 +19,17 @@ export default function InvoicesPage() {
   const [result, setResult] = useState<Paginated<Invoice> | null>(null);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [page, setPage] = useState(1);
 
   const load = () => {
-    const qs = new URLSearchParams({ page: "1", pageSize: "50" });
+    const qs = new URLSearchParams({ page: String(page), pageSize: "50" });
     if (search) qs.set("search", search);
     if (status) qs.set("status", status);
     void apiClient.get<Paginated<Invoice>>(`/sales/invoices?${qs}`).then(setResult);
   };
 
-  useEffect(load, [search, status]);
+  useEffect(load, [search, status, page]);
+  useEffect(() => setPage(1), [search, status]);
 
   async function handleMarkPaid(id: string) {
     await apiClient.post(`/sales/invoices/${id}/mark-paid`);
@@ -129,6 +131,15 @@ export default function InvoicesPage() {
               )}
             </tbody>
           </table>
+          {result && (
+            <Pagination
+              page={result.page}
+              totalPages={result.totalPages}
+              total={result.total}
+              pageSize={result.pageSize}
+              onPageChange={setPage}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

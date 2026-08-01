@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Download, Plus, Trash2 } from "lucide-react";
 import { PERMISSIONS } from "@omniflow/shared";
-import { Badge, Button, Card, CardContent, Input } from "@omniflow/ui";
+import { Badge, Button, Card, CardContent, Input, Pagination } from "@omniflow/ui";
 import { ApiError, apiClient } from "../../../../lib/api-client";
 import { downloadCsv } from "../../../../lib/format";
 import type { Paginated, Product, Shipment, ShipmentStatus, Vehicle, Warehouse } from "../../../../lib/types";
@@ -32,6 +32,7 @@ export default function ShipmentsPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [statusFilter, setStatusFilter] = useState<ShipmentStatus | "">("");
+  const [page, setPage] = useState(1);
 
   const [showCreate, setShowCreate] = useState(false);
   const [warehouseId, setWarehouseId] = useState("");
@@ -47,12 +48,13 @@ export default function ShipmentsPage() {
   const [failureReason, setFailureReason] = useState("");
 
   const load = () => {
-    const qs = new URLSearchParams({ page: "1", pageSize: "50" });
+    const qs = new URLSearchParams({ page: String(page), pageSize: "50" });
     if (statusFilter) qs.set("status", statusFilter);
     void apiClient.get<Paginated<Shipment>>(`/logistics/shipments?${qs}`).then(setResult);
   };
 
-  useEffect(load, [statusFilter]);
+  useEffect(load, [statusFilter, page]);
+  useEffect(() => setPage(1), [statusFilter]);
   useEffect(() => {
     void apiClient.get<Paginated<Warehouse>>("/inventory/warehouses?page=1&pageSize=100").then((r) => setWarehouses(r.items));
     void apiClient
@@ -384,6 +386,15 @@ export default function ShipmentsPage() {
               )}
             </tbody>
           </table>
+          {result && (
+            <Pagination
+              page={result.page}
+              totalPages={result.totalPages}
+              total={result.total}
+              pageSize={result.pageSize}
+              onPageChange={setPage}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

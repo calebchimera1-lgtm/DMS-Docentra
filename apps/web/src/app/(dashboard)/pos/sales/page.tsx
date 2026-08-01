@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import { PERMISSIONS } from "@omniflow/shared";
-import { Badge, Button, Card, CardContent, Input } from "@omniflow/ui";
+import { Badge, Button, Card, CardContent, Input, Pagination } from "@omniflow/ui";
 import { ApiError, apiClient } from "../../../../lib/api-client";
 import { downloadCsv, formatCents } from "../../../../lib/format";
 import type { Paginated, PosSale, PosSaleStatus } from "../../../../lib/types";
@@ -16,18 +16,20 @@ export default function PosSalesPage() {
 
   const [result, setResult] = useState<Paginated<PosSale> | null>(null);
   const [statusFilter, setStatusFilter] = useState<PosSaleStatus | "">("");
+  const [page, setPage] = useState(1);
   const [actioningId, setActioningId] = useState<string | null>(null);
   const [actionType, setActionType] = useState<"void" | "refund" | null>(null);
   const [reason, setReason] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
 
   const load = () => {
-    const qs = new URLSearchParams({ page: "1", pageSize: "50" });
+    const qs = new URLSearchParams({ page: String(page), pageSize: "50" });
     if (statusFilter) qs.set("status", statusFilter);
     void apiClient.get<Paginated<PosSale>>(`/pos/sales?${qs}`).then(setResult);
   };
 
-  useEffect(load, [statusFilter]);
+  useEffect(load, [statusFilter, page]);
+  useEffect(() => setPage(1), [statusFilter]);
 
   function startAction(id: string, type: "void" | "refund") {
     setActioningId(id);
@@ -159,6 +161,15 @@ export default function PosSalesPage() {
               )}
             </tbody>
           </table>
+          {result && (
+            <Pagination
+              page={result.page}
+              totalPages={result.totalPages}
+              total={result.total}
+              pageSize={result.pageSize}
+              onPageChange={setPage}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

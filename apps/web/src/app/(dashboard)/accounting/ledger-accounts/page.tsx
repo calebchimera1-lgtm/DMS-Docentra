@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Download, Plus } from "lucide-react";
 import { PERMISSIONS } from "@omniflow/shared";
-import { Badge, Button, Card, CardContent, Input } from "@omniflow/ui";
+import { Badge, Button, Card, CardContent, Input, Pagination } from "@omniflow/ui";
 import { ApiError, apiClient } from "../../../../lib/api-client";
 import { downloadCsv } from "../../../../lib/format";
 import type { LedgerAccount, LedgerAccountType, Paginated } from "../../../../lib/types";
@@ -19,6 +19,7 @@ export default function LedgerAccountsPage() {
   const [result, setResult] = useState<Paginated<LedgerAccount> | null>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
@@ -27,13 +28,14 @@ export default function LedgerAccountsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
-    const qs = new URLSearchParams({ page: "1", pageSize: "50" });
+    const qs = new URLSearchParams({ page: String(page), pageSize: "50" });
     if (search) qs.set("search", search);
     if (typeFilter) qs.set("type", typeFilter);
     void apiClient.get<Paginated<LedgerAccount>>(`/accounting/ledger-accounts?${qs}`).then(setResult);
   };
 
-  useEffect(load, [search, typeFilter]);
+  useEffect(load, [search, typeFilter, page]);
+  useEffect(() => setPage(1), [search, typeFilter]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -169,6 +171,15 @@ export default function LedgerAccountsPage() {
               )}
             </tbody>
           </table>
+          {result && (
+            <Pagination
+              page={result.page}
+              totalPages={result.totalPages}
+              total={result.total}
+              pageSize={result.pageSize}
+              onPageChange={setPage}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

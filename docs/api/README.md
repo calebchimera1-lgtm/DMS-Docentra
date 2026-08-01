@@ -2022,3 +2022,36 @@ with no linked user account.
 
 Covered by `apps/api/test/notifications.e2e-spec.ts` — previously the
 Notifications module had no e2e coverage at all.
+
+## Frontend pagination controls (system audit)
+
+The audit found that every list endpoint was already fully paginated
+server-side (`Paginated<T>` = `{ items, total, page, pageSize,
+totalPages }`), but every frontend list page hardcoded `page: "1"`
+forever and rendered no pagination UI — any list past the first
+`pageSize` (usually 50) rows was silently truncated with no way for a
+user to reach the rest.
+
+Added a shared `Pagination` component (`packages/ui/src/components/pagination.tsx`,
+exported from `@omniflow/ui`) — a "Showing X–Y of N" label plus
+Previous/Next buttons driven by `{ page, totalPages, total, pageSize,
+onPageChange }`. Wired into every list page across the app: each page
+now holds its own `page` state, includes it in the list query, resets
+to page 1 whenever any other filter (search, status, etc.) changes so
+a narrowed filter never leaves the user stranded on an out-of-range
+page, and renders `<Pagination>` under its table using the `page`/
+`totalPages`/`total`/`pageSize` the API actually returned.
+
+46 of the 47 pages backed by a `Paginated<T>` list got this treatment.
+The one exception, `/pos/register`, was deliberately left alone — it
+uses `Paginated<T>` purely as lookup data for dropdowns and an
+open-session check, not as a browsable table, so pagination controls
+don't apply there.
+
+Verified: `pnpm turbo run lint typecheck build` green (17/17). Live
+Playwright check against the running app: seeded 60 CRM accounts,
+confirmed the Accounts page shows "Showing 1–50 of 60" / "Page 1 of
+2" with Previous disabled, clicked Next, confirmed it advanced to
+"Showing 51–60 of 60" / "Page 2 of 2" with Next disabled and the table
+rows changed to the other half of the data (not a re-render of the
+same page).

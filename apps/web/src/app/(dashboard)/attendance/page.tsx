@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { CalendarCheck, Clock, Download, PlaneTakeoff, UserX } from "lucide-react";
 import { PERMISSIONS } from "@omniflow/shared";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input } from "@omniflow/ui";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Pagination } from "@omniflow/ui";
 import { ApiError, apiClient } from "../../../lib/api-client";
 import { downloadCsv } from "../../../lib/format";
 import type {
@@ -29,6 +29,7 @@ export default function AttendancePage() {
   const [result, setResult] = useState<Paginated<AttendanceRecord> | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [statusFilter, setStatusFilter] = useState<AttendanceStatus | "">("");
+  const [page, setPage] = useState(1);
 
   const [clockInEmployeeId, setClockInEmployeeId] = useState("");
   const [markEmployeeId, setMarkEmployeeId] = useState("");
@@ -40,14 +41,15 @@ export default function AttendancePage() {
   const [submitting, setSubmitting] = useState(false);
 
   const load = () => {
-    const qs = new URLSearchParams({ page: "1", pageSize: "50" });
+    const qs = new URLSearchParams({ page: String(page), pageSize: "50" });
     if (statusFilter) qs.set("status", statusFilter);
     void apiClient.get<Paginated<AttendanceRecord>>(`/attendance?${qs}`).then(setResult);
     void apiClient.get<AttendanceSummary>("/attendance/reports/summary").then(setSummary);
     void apiClient.get<AttendanceByStatus[]>("/attendance/reports/by-status").then(setByStatus);
   };
 
-  useEffect(load, [statusFilter]);
+  useEffect(load, [statusFilter, page]);
+  useEffect(() => setPage(1), [statusFilter]);
   useEffect(() => {
     void apiClient.get<Paginated<Employee>>("/hr/employees?page=1&pageSize=100").then((r) => setEmployees(r.items));
   }, []);
@@ -282,6 +284,15 @@ export default function AttendancePage() {
               )}
             </tbody>
           </table>
+          {result && (
+            <Pagination
+              page={result.page}
+              totalPages={result.totalPages}
+              total={result.total}
+              pageSize={result.pageSize}
+              onPageChange={setPage}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

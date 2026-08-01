@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Download, Plus } from "lucide-react";
 import { PERMISSIONS } from "@omniflow/shared";
-import { Badge, Button, Card, CardContent, Input } from "@omniflow/ui";
+import { Badge, Button, Card, CardContent, Input, Pagination } from "@omniflow/ui";
 import { ApiError, apiClient } from "../../../../lib/api-client";
 import { downloadCsv } from "../../../../lib/format";
 import type { CalculationType, Paginated, SalaryComponent, SalaryComponentType } from "../../../../lib/types";
@@ -19,6 +19,7 @@ export default function SalaryComponentsPage() {
 
   const [result, setResult] = useState<Paginated<SalaryComponent> | null>(null);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -29,12 +30,13 @@ export default function SalaryComponentsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
-    const qs = new URLSearchParams({ page: "1", pageSize: "50" });
+    const qs = new URLSearchParams({ page: String(page), pageSize: "50" });
     if (search) qs.set("search", search);
     void apiClient.get<Paginated<SalaryComponent>>(`/payroll/salary-components?${qs}`).then(setResult);
   };
 
-  useEffect(load, [search]);
+  useEffect(load, [search, page]);
+  useEffect(() => setPage(1), [search]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -185,6 +187,15 @@ export default function SalaryComponentsPage() {
               )}
             </tbody>
           </table>
+          {result && (
+            <Pagination
+              page={result.page}
+              totalPages={result.totalPages}
+              total={result.total}
+              pageSize={result.pageSize}
+              onPageChange={setPage}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

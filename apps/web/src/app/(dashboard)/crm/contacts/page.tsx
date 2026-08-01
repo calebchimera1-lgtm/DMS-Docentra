@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Download, Plus } from "lucide-react";
 import { PERMISSIONS } from "@omniflow/shared";
-import { Button, Card, CardContent, Input } from "@omniflow/ui";
+import { Button, Card, CardContent, Input, Pagination } from "@omniflow/ui";
 import { apiClient } from "../../../../lib/api-client";
 import { downloadCsv } from "../../../../lib/format";
 import type { CrmAccount, CrmContact, Paginated } from "../../../../lib/types";
@@ -17,6 +17,7 @@ export default function CrmContactsPage() {
   const [result, setResult] = useState<Paginated<CrmContact> | null>(null);
   const [accounts, setAccounts] = useState<CrmAccount[]>([]);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -25,12 +26,13 @@ export default function CrmContactsPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const load = () => {
-    const qs = new URLSearchParams({ page: "1", pageSize: "50" });
+    const qs = new URLSearchParams({ page: String(page), pageSize: "50" });
     if (search) qs.set("search", search);
     void apiClient.get<Paginated<CrmContact>>(`/crm/contacts?${qs}`).then(setResult);
   };
 
-  useEffect(load, [search]);
+  useEffect(load, [search, page]);
+  useEffect(() => setPage(1), [search]);
   useEffect(() => {
     void apiClient
       .get<Paginated<CrmAccount>>("/crm/accounts?page=1&pageSize=100")
@@ -156,6 +158,15 @@ export default function CrmContactsPage() {
               )}
             </tbody>
           </table>
+          {result && (
+            <Pagination
+              page={result.page}
+              totalPages={result.totalPages}
+              total={result.total}
+              pageSize={result.pageSize}
+              onPageChange={setPage}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { Download, Plus } from "lucide-react";
 import { PERMISSIONS } from "@omniflow/shared";
-import { Badge, Button, Card, CardContent } from "@omniflow/ui";
+import { Badge, Button, Card, CardContent, Pagination } from "@omniflow/ui";
 import { ApiError, apiClient } from "../../../../lib/api-client";
 import { downloadCsv, formatCents } from "../../../../lib/format";
 import type { Paginated, PurchaseOrder, Supplier, Warehouse } from "../../../../lib/types";
@@ -26,6 +26,7 @@ export default function PurchaseOrdersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [status, setStatus] = useState("");
+  const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [supplierId, setSupplierId] = useState("");
@@ -36,12 +37,13 @@ export default function PurchaseOrdersPage() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const load = () => {
-    const qs = new URLSearchParams({ page: "1", pageSize: "50" });
+    const qs = new URLSearchParams({ page: String(page), pageSize: "50" });
     if (status) qs.set("status", status);
     void apiClient.get<Paginated<PurchaseOrder>>(`/purchase/orders?${qs}`).then(setResult);
   };
 
-  useEffect(load, [status]);
+  useEffect(load, [status, page]);
+  useEffect(() => setPage(1), [status]);
   useEffect(() => {
     void apiClient.get<Paginated<Supplier>>("/purchase/suppliers?page=1&pageSize=100").then((r) => setSuppliers(r.items));
     void apiClient.get<Paginated<Warehouse>>("/inventory/warehouses?page=1&pageSize=100").then((r) => setWarehouses(r.items));
@@ -281,6 +283,15 @@ export default function PurchaseOrdersPage() {
               )}
             </tbody>
           </table>
+          {result && (
+            <Pagination
+              page={result.page}
+              totalPages={result.totalPages}
+              total={result.total}
+              pageSize={result.pageSize}
+              onPageChange={setPage}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

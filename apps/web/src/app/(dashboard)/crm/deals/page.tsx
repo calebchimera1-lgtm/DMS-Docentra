@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Download, Plus } from "lucide-react";
 import { PERMISSIONS } from "@omniflow/shared";
-import { Button, Card, CardContent, Input } from "@omniflow/ui";
+import { Button, Card, CardContent, Input, Pagination } from "@omniflow/ui";
 import { apiClient } from "../../../../lib/api-client";
 import { downloadCsv, formatCents } from "../../../../lib/format";
 import type { CrmAccount, CrmDeal, CrmDealStage, Paginated } from "../../../../lib/types";
@@ -20,6 +20,7 @@ export default function CrmDealsPage() {
   const [accounts, setAccounts] = useState<CrmAccount[]>([]);
   const [search, setSearch] = useState("");
   const [stage, setStage] = useState<string>("");
+  const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState("");
   const [valueDollars, setValueDollars] = useState("");
@@ -27,13 +28,14 @@ export default function CrmDealsPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const load = () => {
-    const qs = new URLSearchParams({ page: "1", pageSize: "50" });
+    const qs = new URLSearchParams({ page: String(page), pageSize: "50" });
     if (search) qs.set("search", search);
     if (stage) qs.set("stage", stage);
     void apiClient.get<Paginated<CrmDeal>>(`/crm/deals?${qs}`).then(setResult);
   };
 
-  useEffect(load, [search, stage]);
+  useEffect(load, [search, stage, page]);
+  useEffect(() => setPage(1), [search, stage]);
   useEffect(() => {
     void apiClient
       .get<Paginated<CrmAccount>>("/crm/accounts?page=1&pageSize=100")
@@ -198,6 +200,15 @@ export default function CrmDealsPage() {
               )}
             </tbody>
           </table>
+          {result && (
+            <Pagination
+              page={result.page}
+              totalPages={result.totalPages}
+              total={result.total}
+              pageSize={result.pageSize}
+              onPageChange={setPage}
+            />
+          )}
         </CardContent>
       </Card>
     </div>

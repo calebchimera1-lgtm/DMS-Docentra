@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Banknote, Download, FileClock, FileText, Plus } from "lucide-react";
 import { PERMISSIONS } from "@omniflow/shared";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input } from "@omniflow/ui";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Pagination } from "@omniflow/ui";
 import { ApiError, apiClient } from "../../../lib/api-client";
 import { downloadCsv, formatCents } from "../../../lib/format";
 import type { Contract, ContractsByStatus, ContractsSummary, ContractType, CrmAccount, Paginated } from "../../../lib/types";
@@ -24,6 +24,7 @@ export default function ContractsPage() {
   const [accounts, setAccounts] = useState<CrmAccount[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
 
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState("");
@@ -37,7 +38,7 @@ export default function ContractsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
-    const qs = new URLSearchParams({ page: "1", pageSize: "50" });
+    const qs = new URLSearchParams({ page: String(page), pageSize: "50" });
     if (search) qs.set("search", search);
     if (statusFilter) qs.set("status", statusFilter);
     void apiClient.get<Paginated<Contract>>(`/contracts?${qs}`).then(setResult);
@@ -45,7 +46,8 @@ export default function ContractsPage() {
     void apiClient.get<ContractsByStatus[]>("/contracts/reports/by-status").then(setByStatus);
   };
 
-  useEffect(load, [search, statusFilter]);
+  useEffect(load, [search, statusFilter, page]);
+  useEffect(() => setPage(1), [search, statusFilter]);
   useEffect(() => {
     void apiClient.get<Paginated<CrmAccount>>("/crm/accounts?page=1&pageSize=100").then((r) => setAccounts(r.items));
   }, []);
@@ -245,6 +247,15 @@ export default function ContractsPage() {
               )}
             </tbody>
           </table>
+          {result && (
+            <Pagination
+              page={result.page}
+              totalPages={result.totalPages}
+              total={result.total}
+              pageSize={result.pageSize}
+              onPageChange={setPage}
+            />
+          )}
         </CardContent>
       </Card>
     </div>
