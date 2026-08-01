@@ -1892,3 +1892,38 @@ icon for anything unrecognized) instead of importing a static
 `NAV_ITEMS` array. Disabling a module via `POST /plugins/:key/disable`
 removes it from every user's sidebar in that company immediately — no
 code change, no redeploy — verified live (see `docs/audit/` findings).
+
+## Automatic recurring billing (system audit)
+
+Confirmed by the system audit: `SubscriptionsService.bill()` (Milestone
+7t) does everything a "recurring" charge needs — raises the invoice,
+links it to the period, rolls `currentPeriodStart`/`End` forward by
+exactly one interval — but nothing ever called it automatically. A
+subscription's period would sit past due forever unless someone
+remembered to call `POST /billing/subscriptions/:id/bill` by hand.
+
+`apps/api/src/jobs/jobs.service.ts` now schedules a second repeatable
+job, `JOB_BILL_DUE_SUBSCRIPTIONS`, daily at 02:00 (ahead of the existing
+03:00 session cleanup), on the same `QUEUE_MAINTENANCE` queue as
+`cleanup-expired-sessions`. `apps/worker/src/processors/maintenance.processor.ts`
+dispatches it to `apps/worker/src/billing/bill-due-subscriptions.ts`,
+which finds every `ACTIVE` subscription whose `currentPeriodEnd` has
+passed (across all companies — there's no per-company cron, one sweep
+covers everyone) and bills each independently, so one failure doesn't
+block the rest. The same `(subscriptionId, periodStart)` uniqueness
+check `bill()` uses guards against double-billing if a run overlaps
+with a manual call for the same period.
+
+The billing transaction itself is intentionally duplicated rather than
+imported from `apps/api` — `apps/worker` is a separately deployed
+application with no cross-app `src` dependency, the same boundary
+`cleanupExpiredSessions()` already respects by working directly against
+Prisma. If the billing transaction's behavior ever changes, change it
+in both places.
+
+Verified live: created a subscription, activated it, backdated its
+`currentPeriodEnd` by 31 days directly in Postgres to simulate a period
+coming due, then ran `billDueSubscriptions()` (the exact function the
+worker's cron calls) — it raised `INV-000001` for the correct period,
+linked it via `SubscriptionInvoice`, and rolled the subscription's
+period forward by one month with no gap.

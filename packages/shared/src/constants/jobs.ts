@@ -8,6 +8,7 @@ export const QUEUE_WEBHOOKS = "webhooks";
 
 export const JOB_CLEANUP_EXPIRED_SESSIONS = "cleanup-expired-sessions";
 export const JOB_DELIVER_WEBHOOK = "deliver-webhook";
+export const JOB_BILL_DUE_SUBSCRIPTIONS = "bill-due-subscriptions";
 
 export interface DeliverWebhookJobData {
   url: string;

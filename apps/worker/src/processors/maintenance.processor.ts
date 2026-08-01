@@ -1,7 +1,8 @@
 import { Logger } from "@nestjs/common";
 import { Processor, WorkerHost } from "@nestjs/bullmq";
-import { JOB_CLEANUP_EXPIRED_SESSIONS, QUEUE_MAINTENANCE } from "@omniflow/shared";
+import { JOB_BILL_DUE_SUBSCRIPTIONS, JOB_CLEANUP_EXPIRED_SESSIONS, QUEUE_MAINTENANCE } from "@omniflow/shared";
 import type { Job } from "bullmq";
+import { billDueSubscriptions } from "../billing/bill-due-subscriptions";
 import { PrismaService } from "../prisma/prisma.service";
 
 const SESSION_RETENTION_DAYS = 30;
@@ -19,9 +20,17 @@ export class MaintenanceProcessor extends WorkerHost {
       case JOB_CLEANUP_EXPIRED_SESSIONS:
         await this.cleanupExpiredSessions();
         return;
+      case JOB_BILL_DUE_SUBSCRIPTIONS:
+        await this.billDueSubscriptions();
+        return;
       default:
         this.logger.warn(`Unknown job in ${QUEUE_MAINTENANCE}: ${job.name}`);
     }
+  }
+
+  private async billDueSubscriptions(): Promise<void> {
+    const { billed, failed } = await billDueSubscriptions(this.prisma);
+    this.logger.log(`Recurring billing: ${billed} subscription(s) billed, ${failed} failed`);
   }
 
   /**

@@ -3,6 +3,7 @@ import { InjectQueue } from "@nestjs/bullmq";
 import type { Queue } from "bullmq";
 import {
   DeliverWebhookJobData,
+  JOB_BILL_DUE_SUBSCRIPTIONS,
   JOB_CLEANUP_EXPIRED_SESSIONS,
   JOB_DELIVER_WEBHOOK,
   QUEUE_MAINTENANCE,
@@ -10,6 +11,7 @@ import {
 } from "@omniflow/shared";
 
 const SESSION_CLEANUP_CRON = "0 3 * * *"; // daily at 03:00
+const SUBSCRIPTION_BILLING_CRON = "0 2 * * *"; // daily at 02:00, ahead of session cleanup
 
 @Injectable()
 export class JobsService implements OnModuleInit {
@@ -28,6 +30,16 @@ export class JobsService implements OnModuleInit {
       { repeat: { pattern: SESSION_CLEANUP_CRON }, jobId: JOB_CLEANUP_EXPIRED_SESSIONS },
     );
     this.logger.log(`Scheduled ${JOB_CLEANUP_EXPIRED_SESSIONS} (${SESSION_CLEANUP_CRON})`);
+
+    // Automatic recurring billing — until this existed, a subscription's
+    // "recurring" invoice only ever got raised if someone remembered to
+    // call POST /billing/subscriptions/:id/bill by hand.
+    await this.maintenanceQueue.add(
+      JOB_BILL_DUE_SUBSCRIPTIONS,
+      {},
+      { repeat: { pattern: SUBSCRIPTION_BILLING_CRON }, jobId: JOB_BILL_DUE_SUBSCRIPTIONS },
+    );
+    this.logger.log(`Scheduled ${JOB_BILL_DUE_SUBSCRIPTIONS} (${SUBSCRIPTION_BILLING_CRON})`);
   }
 
   /**
