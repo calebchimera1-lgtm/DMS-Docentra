@@ -185,6 +185,29 @@ describe("Billing module (e2e)", () => {
     expect(match.totalCents).toBe(10_000);
   });
 
+  it("lists the manual payment provider and attempts (but does not complete) collection", async () => {
+    const providers = await request(app.getHttpServer())
+      .get("/api/v1/billing/payment-providers")
+      .set("Authorization", `Bearer ${ownerAccess}`)
+      .expect(200);
+    expect(providers.body).toEqual([{ key: "manual", displayName: "Manual collection" }]);
+
+    const attempt = await request(app.getHttpServer())
+      .post(`/api/v1/billing/subscriptions/${subscriptionId}/collect-payment`)
+      .set("Authorization", `Bearer ${ownerAccess}`)
+      .send({})
+      .expect(201);
+    // No payment gateway is wired up — this never charges real money.
+    expect(attempt.body.status).toBe("PENDING");
+    expect(attempt.body.providerReference).toBeNull();
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/billing/subscriptions/${subscriptionId}/collect-payment`)
+      .set("Authorization", `Bearer ${ownerAccess}`)
+      .send({ provider: "stripe" })
+      .expect(404);
+  });
+
   it("refuses to invoice a period that has already been billed", async () => {
     const before = await request(app.getHttpServer())
       .get(`/api/v1/billing/subscriptions/${subscriptionId}`)

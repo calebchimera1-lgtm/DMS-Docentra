@@ -4,7 +4,10 @@ import { PrismaService } from "../../../prisma/prisma.service";
 import { toCsv } from "../../../common/utils/csv.util";
 import { formatDocumentNumber } from "../../sales/common/document-number.util";
 import { addDays, addInterval } from "../common/billing-period.util";
+import { PaymentProviderRegistry } from "../payment-providers/payment-provider.registry";
+import type { PaymentChargeResult } from "../payment-providers/payment-provider.interface";
 import type { BillSubscriptionDto } from "./dto/bill-subscription.dto";
+import type { CollectPaymentDto } from "./dto/collect-payment.dto";
 import type { CreateSubscriptionDto } from "./dto/create-subscription.dto";
 import type { ListSubscriptionsQueryDto } from "./dto/list-subscriptions-query.dto";
 import type { UpdateSubscriptionDto } from "./dto/update-subscription.dto";
@@ -31,7 +34,10 @@ const subscriptionInclude = {
 
 @Injectable()
 export class SubscriptionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly paymentProviders: PaymentProviderRegistry,
+  ) {}
 
   private buildWhere(companyId: string, query: Pick<ListSubscriptionsQueryDto, "status" | "accountId" | "planId">) {
     return {
@@ -222,6 +228,36 @@ export class SubscriptionsService {
       });
 
       return tx.subscription.findUniqueOrThrow({ where: { id }, include: subscriptionInclude });
+    });
+  }
+
+  /**
+   * Attempts to collect payment for this subscription's most recent
+   * unpaid (SENT) invoice through the named PaymentProvider — "manual"
+   * by default, the only one registered today. Nothing here charges real
+   * money: ManualPaymentProvider always comes back PENDING, meaning the
+   * invoice still has to be collected and recorded as a Payment in
+   * Accounting the way it is today. A real gateway integration would
+   * report SUCCEEDED/FAILED here instead; this method is the one place
+   * that would need to react to that once one exists — it doesn't have
+   * to be threaded through bill() or anywhere else.
+   */
+  async collectPayment(companyId: string, id: string, dto: CollectPaymentDto): Promise<PaymentChargeResult> {
+    const subscription = await this.findOne(companyId, id);
+    const unpaidInvoice = subscription.invoices
+      .map((si) => si.invoice)
+      .find((invoice) => invoice.status === "SENT" || invoice.status === "OVERDUE");
+    if (!unpaidInvoice) {
+      throw new BadRequestException("This subscription has no outstanding invoice to collect payment for");
+    }
+
+    const provider = this.paymentProviders.resolve(dto.provider);
+    return provider.charge({
+      companyId,
+      amountCents: unpaidInvoice.totalCents,
+      currency: subscription.plan.currency,
+      reference: unpaidInvoice.invoiceNumber,
+      description: `${subscription.plan.name} subscription for ${subscription.account.name}`,
     });
   }
 

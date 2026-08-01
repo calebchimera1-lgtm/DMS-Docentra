@@ -6,6 +6,7 @@ import { CurrentUser } from "../../../common/decorators/current-user.decorator";
 import { RequirePermissions } from "../../../common/decorators/require-permissions.decorator";
 import type { RequestUser } from "../../auth/interfaces/jwt-payload.interface";
 import { BillSubscriptionDto } from "./dto/bill-subscription.dto";
+import { CollectPaymentDto } from "./dto/collect-payment.dto";
 import { CreateSubscriptionDto } from "./dto/create-subscription.dto";
 import { ListSubscriptionsQueryDto } from "./dto/list-subscriptions-query.dto";
 import { UpdateSubscriptionDto } from "./dto/update-subscription.dto";
@@ -67,6 +68,16 @@ export class SubscriptionsController {
   @ApiOperation({ summary: "Invoice the current period and roll the subscription forward one interval" })
   bill(@CurrentUser() user: RequestUser, @Param("id") id: string, @Body() dto: BillSubscriptionDto) {
     return this.subscriptionsService.bill(user.companyId, user.id, id, dto);
+  }
+
+  @Post(":id/collect-payment")
+  @RequirePermissions(PERMISSIONS.BILLING_WRITE)
+  @ApiOperation({
+    summary:
+      "Attempt to collect payment for the current outstanding invoice through a PaymentProvider (\"manual\" by default — no real charge is made)",
+  })
+  collectPayment(@CurrentUser() user: RequestUser, @Param("id") id: string, @Body() dto: CollectPaymentDto) {
+    return this.subscriptionsService.collectPayment(user.companyId, id, dto);
   }
 
   @Post(":id/pause")

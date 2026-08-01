@@ -1927,3 +1927,32 @@ coming due, then ran `billDueSubscriptions()` (the exact function the
 worker's cron calls) — it raised `INV-000001` for the correct period,
 linked it via `SubscriptionInvoice`, and rolled the subscription's
 period forward by one month with no gap.
+
+## Payment provider abstraction (system audit)
+
+The audit asked for a payment-provider abstraction ahead of a future
+M-Pesa/Stripe/PayPal integration, explicit that nothing should charge
+real money yet. `apps/api/src/modules/billing/payment-providers/`:
+
+- `payment-provider.interface.ts` — the seam: `PaymentProvider.charge(request)`
+  returns a `PaymentChargeResult` (`SUCCEEDED | FAILED | PENDING`).
+- `manual-payment.provider.ts` — the only registered implementation.
+  `charge()` always returns `PENDING`: "collect this manually and record
+  it as a Payment in Accounting," the same as today's actual workflow.
+  It never reports a charge as succeeded, so there's no fabricated money
+  movement anywhere in the system.
+- `payment-provider.registry.ts` — resolves a provider by key (`"manual"`
+  by default), throwing `NotFoundException` for anything unregistered
+  rather than silently falling back. A future gateway integration
+  implements `PaymentProvider`, registers itself here and in
+  `BillingModule`'s provider list, and every caller that already goes
+  through the registry picks it up with no further changes.
+
+Wired into a real call site rather than left as unused types:
+`SubscriptionsService.collectPayment()` (`POST
+/billing/subscriptions/:id/collect-payment`) finds the subscription's
+outstanding `SENT`/`OVERDUE` invoice and calls the resolved provider's
+`charge()`. `GET /billing/payment-providers` lists what's registered.
+With only the manual provider registered, `collect-payment` always comes
+back `PENDING` — that's the honest state of the system today, not a
+placeholder that pretends otherwise.
