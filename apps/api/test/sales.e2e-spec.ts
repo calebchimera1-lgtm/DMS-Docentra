@@ -14,11 +14,13 @@ describe("Sales module (e2e)", () => {
   const password = "Correct-Horse-Battery-9!";
 
   let ownerAccess: string;
+  let companyId: string;
   let accountId: string;
   let productId: string;
   let quoteId: string;
   let orderId: string;
   let invoiceId: string;
+  let warehouseId: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -38,12 +40,22 @@ describe("Sales module (e2e)", () => {
       .expect(201);
     ownerAccess = reg.body.accessToken;
 
+    const ownerUser = await prisma.user.findUniqueOrThrow({ where: { email: ownerEmail } });
+    companyId = ownerUser.companyId;
+
     const account = await request(app.getHttpServer())
       .post("/api/v1/crm/accounts")
       .set("Authorization", `Bearer ${ownerAccess}`)
       .send({ name: "Sales Test Account" })
       .expect(201);
     accountId = account.body.id;
+
+    const warehouse = await request(app.getHttpServer())
+      .post("/api/v1/inventory/warehouses")
+      .set("Authorization", `Bearer ${ownerAccess}`)
+      .send({ name: "Main Warehouse", code: "MAIN" })
+      .expect(201);
+    warehouseId = warehouse.body.id;
   });
 
   afterAll(async () => {
@@ -59,6 +71,12 @@ describe("Sales module (e2e)", () => {
       .expect(201);
     productId = res.body.id;
     expect(res.body.sku).toBe("WIDGET-1");
+  });
+
+  it("auto-provisions a chart of accounts on company registration", async () => {
+    const accounts = await prisma.ledgerAccount.findMany({ where: { companyId } });
+    expect(accounts.length).toBeGreaterThan(0);
+    expect(accounts.map((a) => a.code)).toEqual(expect.arrayContaining(["1100", "4000"]));
   });
 
   it("rejects a duplicate SKU within the same company", async () => {
@@ -120,7 +138,51 @@ describe("Sales module (e2e)", () => {
       .expect(400);
   });
 
-  it("converts a sales order into an invoice exactly once", async () => {
+  it("rejects fulfilling without a warehouse, then fulfills and deducts stock", async () => {
+    await request(app.getHttpServer())
+      .post(`/api/v1/inventory/movements`)
+      .set("Authorization", `Bearer ${ownerAccess}`)
+      .send({ productId, warehouseId, type: "RECEIPT", quantity: 100, note: "Opening stock" })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/sales/orders/${orderId}/fulfill`)
+      .set("Authorization", `Bearer ${ownerAccess}`)
+      .send({})
+      .expect(400);
+
+    // Direct status edits can't bypass fulfillment's stock deduction.
+    await request(app.getHttpServer())
+      .patch(`/api/v1/sales/orders/${orderId}`)
+      .set("Authorization", `Bearer ${ownerAccess}`)
+      .send({ status: "FULFILLED" })
+      .expect(400);
+
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/sales/orders/${orderId}/fulfill`)
+      .set("Authorization", `Bearer ${ownerAccess}`)
+      .send({ warehouseId })
+      .expect(201);
+    expect(res.body.status).toBe("FULFILLED");
+
+    const stockItem = await prisma.stockItem.findUnique({
+      where: { productId_warehouseId: { productId, warehouseId } },
+    });
+    expect(stockItem?.quantityOnHand).toBe(90); // 100 opening - 10 ordered
+
+    const movements = await prisma.stockMovement.findMany({ where: { companyId, productId, type: "SALE" } });
+    expect(movements).toHaveLength(1);
+    expect(movements[0]?.quantity).toBe(-10);
+
+    // Already fulfilled — can't fulfill twice.
+    await request(app.getHttpServer())
+      .post(`/api/v1/sales/orders/${orderId}/fulfill`)
+      .set("Authorization", `Bearer ${ownerAccess}`)
+      .send({})
+      .expect(400);
+  });
+
+  it("converts a sales order into an invoice exactly once, posting the receivable to the ledger", async () => {
     const res = await request(app.getHttpServer())
       .post(`/api/v1/sales/orders/${orderId}/convert-to-invoice`)
       .set("Authorization", `Bearer ${ownerAccess}`)
@@ -130,6 +192,17 @@ describe("Sales module (e2e)", () => {
     expect(res.body.totalCents).toBe(25500);
     expect(res.body.status).toBe("DRAFT");
     expect(res.body.dueDate).toBeTruthy();
+
+    const entry = await prisma.journalEntry.findFirst({
+      where: { companyId, memo: `Invoice ${res.body.invoiceNumber}` },
+      include: { lines: { include: { ledgerAccount: true } } },
+    });
+    expect(entry).not.toBeNull();
+    expect(entry?.status).toBe("POSTED");
+    const receivableLine = entry?.lines.find((l) => l.ledgerAccount.code === "1100");
+    const revenueLine = entry?.lines.find((l) => l.ledgerAccount.code === "4000");
+    expect(receivableLine?.debitCents).toBe(25500);
+    expect(revenueLine?.creditCents).toBe(25500);
 
     await request(app.getHttpServer())
       .post(`/api/v1/sales/orders/${orderId}/convert-to-invoice`)

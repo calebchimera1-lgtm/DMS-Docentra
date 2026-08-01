@@ -18,6 +18,7 @@ import { CurrentUser } from "../../../common/decorators/current-user.decorator";
 import { RequirePermissions } from "../../../common/decorators/require-permissions.decorator";
 import type { RequestUser } from "../../auth/interfaces/jwt-payload.interface";
 import { CreateSalesOrderDto } from "./dto/create-order.dto";
+import { FulfillOrderDto } from "./dto/fulfill-order.dto";
 import { ListOrdersQueryDto } from "./dto/list-orders-query.dto";
 import { UpdateSalesOrderDto } from "./dto/update-order.dto";
 import { OrdersService } from "./orders.service";
@@ -71,6 +72,13 @@ export class OrdersController {
   @ApiOperation({ summary: "Convert a sales order into an invoice" })
   convertToInvoice(@CurrentUser() user: RequestUser, @Param("id") id: string) {
     return this.ordersService.convertToInvoice(user.companyId, id);
+  }
+
+  @Post(":id/fulfill")
+  @RequirePermissions(PERMISSIONS.SALES_WRITE)
+  @ApiOperation({ summary: "Fulfill a sales order — deducts stock for each line item and records the movement" })
+  fulfill(@CurrentUser() user: RequestUser, @Param("id") id: string, @Body() dto: FulfillOrderDto) {
+    return this.ordersService.fulfill(user.companyId, user.id, id, dto);
   }
 
   @Delete(":id")

@@ -4,6 +4,7 @@ import { PrismaService } from "../../../prisma/prisma.service";
 import { toCsv } from "../../../common/utils/csv.util";
 import { priceLineItems } from "../common/line-item.dto";
 import { formatDocumentNumber } from "../common/document-number.util";
+import { postInvoiceReceivable } from "../common/sales-posting.util";
 import type { CreateInvoiceDto } from "./dto/create-invoice.dto";
 import type { ListInvoicesQueryDto } from "./dto/list-invoices-query.dto";
 import type { UpdateInvoiceDto } from "./dto/update-invoice.dto";
@@ -64,19 +65,26 @@ export class InvoicesService {
     await this.assertAccountBelongsToCompany(companyId, dto.accountId);
     const { items, subtotalCents } = priceLineItems(dto.items);
 
-    const count = await this.prisma.invoice.count({ where: { companyId } });
-    return this.prisma.invoice.create({
-      data: {
-        companyId,
-        accountId: dto.accountId,
-        contactId: dto.contactId,
-        invoiceNumber: formatDocumentNumber("INV", count),
-        items: items as unknown as object,
-        totalCents: subtotalCents,
-        currency: dto.currency ?? "USD",
-        dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
-      },
-      include: invoiceInclude,
+    return this.prisma.$transaction(async (tx) => {
+      const count = await tx.invoice.count({ where: { companyId } });
+      const invoiceNumber = formatDocumentNumber("INV", count);
+      const invoice = await tx.invoice.create({
+        data: {
+          companyId,
+          accountId: dto.accountId,
+          contactId: dto.contactId,
+          invoiceNumber,
+          items: items as unknown as object,
+          totalCents: subtotalCents,
+          currency: dto.currency ?? "USD",
+          dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
+        },
+        include: invoiceInclude,
+      });
+
+      await postInvoiceReceivable(tx, companyId, invoiceNumber, invoice.totalCents);
+
+      return invoice;
     });
   }
 

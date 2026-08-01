@@ -846,16 +846,20 @@ model SalesOrder {
   totalCents  Int              @default(0) @map("total_cents")
   currency    String           @default("USD")
   ownerId     String?          @map("owner_id")
+  /// Warehouse stock was deducted from on fulfillment. Set either up front
+  /// or at fulfill-time — required before the order can move to FULFILLED.
+  warehouseId String?          @map("warehouse_id")
   createdAt   DateTime         @default(now()) @map("created_at")
   updatedAt   DateTime         @updatedAt @map("updated_at")
   deletedAt   DateTime?        @map("deleted_at")
 
-  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  account CrmAccount  @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  contact CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  quote   Quote?      @relation(fields: [quoteId], references: [id], onDelete: SetNull)
-  owner   User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  invoice Invoice?
+  company   Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account   CrmAccount  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  contact   CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  quote     Quote?      @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  owner     User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  warehouse Warehouse?  @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  invoice   Invoice?
 
   shipments Shipment[]
 
@@ -923,6 +927,7 @@ model Warehouse {
   workOrders          WorkOrder[]
   posRegisterSessions PosRegisterSession[]
   posSales            PosSale[]
+  salesOrders         SalesOrder[]
 
   shipments Shipment[]
 

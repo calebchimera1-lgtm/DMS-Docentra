@@ -13,6 +13,11 @@ export class CreateSalesOrderDto {
   @IsUUID()
   contactId?: string;
 
+  @ApiPropertyOptional({ description: "Warehouse to fulfill this order from. Can also be set/overridden when calling fulfill." })
+  @IsOptional()
+  @IsUUID()
+  warehouseId?: string;
+
   @ApiProperty({ type: [LineItemDto] })
   @IsArray()
   @ArrayMinSize(1)

@@ -63,7 +63,7 @@ describe("Assets module (e2e)", () => {
       request(app.getHttpServer())
         .post("/api/v1/accounting/ledger-accounts")
         .set("Authorization", `Bearer ${ownerAccess}`)
-        .send({ code: "1000", name: "Bank", type: "ASSET" }),
+        .send({ code: "9000", name: "Bank", type: "ASSET" }),
       request(app.getHttpServer())
         .post("/api/v1/accounting/ledger-accounts")
         .set("Authorization", `Bearer ${ownerAccess}`)

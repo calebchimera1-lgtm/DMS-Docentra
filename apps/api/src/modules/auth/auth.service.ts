@@ -12,6 +12,7 @@ import { JwtService } from "@nestjs/jwt";
 import { authenticator } from "otplib";
 import * as QRCode from "qrcode";
 import * as bcrypt from "bcryptjs";
+import { DEFAULT_CHART_OF_ACCOUNTS } from "@omniflow/shared";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CryptoService } from "../../common/crypto/crypto.service";
 import { DomainEvents } from "../../common/events/domain-events";
@@ -71,6 +72,19 @@ export class AuthService {
           code: "HQ",
           isHeadquarters: true,
         },
+      });
+
+      // Every module that can post a journal entry (Sales, Expenses, Assets, ...)
+      // needs somewhere to post it. Without this, a freshly registered company
+      // has zero ledger accounts and automatic postings silently have nothing
+      // to post against.
+      await tx.ledgerAccount.createMany({
+        data: DEFAULT_CHART_OF_ACCOUNTS.map((account) => ({
+          companyId: company.id,
+          code: account.code,
+          name: account.name,
+          type: account.type,
+        })),
       });
 
       const permissions = await tx.permission.findMany();

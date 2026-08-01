@@ -50,32 +50,53 @@ describe("Accounting module (e2e)", () => {
     await app.close();
   });
 
-  it("creates ledger accounts and rejects a duplicate code", async () => {
+  it("auto-provisions a chart of accounts on registration (1000/1100/4000 already exist)", async () => {
+    const accounts = await request(app.getHttpServer())
+      .get("/api/v1/accounting/ledger-accounts?pageSize=50")
+      .set("Authorization", `Bearer ${ownerAccess}`)
+      .expect(200);
+    expect(accounts.body.total).toBe(8);
+    expect(accounts.body.items.map((a: { code: string }) => a.code)).toEqual(
+      expect.arrayContaining(["1000", "1100", "4000"]),
+    );
+  });
+
+  it("creates ledger accounts (codes distinct from the auto-provisioned defaults) and rejects a duplicate code", async () => {
+    // Codes 9000/9100/9400 are deliberately outside the default chart of
+    // accounts (1000-5100) so this company's own bank/AR/revenue accounts
+    // exist alongside the auto-provisioned ones, not in place of them.
     const bank = await request(app.getHttpServer())
       .post("/api/v1/accounting/ledger-accounts")
       .set("Authorization", `Bearer ${ownerAccess}`)
-      .send({ code: "1000", name: "Bank", type: "ASSET" })
+      .send({ code: "9000", name: "Business Bank Account", type: "ASSET" })
       .expect(201);
     bankId = bank.body.id;
 
     const ar = await request(app.getHttpServer())
       .post("/api/v1/accounting/ledger-accounts")
       .set("Authorization", `Bearer ${ownerAccess}`)
-      .send({ code: "1100", name: "Accounts Receivable", type: "ASSET" })
+      .send({ code: "9100", name: "Trade Receivables", type: "ASSET" })
       .expect(201);
     arId = ar.body.id;
 
     const revenue = await request(app.getHttpServer())
       .post("/api/v1/accounting/ledger-accounts")
       .set("Authorization", `Bearer ${ownerAccess}`)
-      .send({ code: "4000", name: "Sales Revenue", type: "REVENUE" })
+      .send({ code: "9400", name: "Consulting Revenue", type: "REVENUE" })
       .expect(201);
     revenueId = revenue.body.id;
 
     await request(app.getHttpServer())
       .post("/api/v1/accounting/ledger-accounts")
       .set("Authorization", `Bearer ${ownerAccess}`)
-      .send({ code: "1000", name: "Duplicate", type: "ASSET" })
+      .send({ code: "9000", name: "Duplicate", type: "ASSET" })
+      .expect(409);
+
+    // Also rejects colliding with an auto-provisioned default's code.
+    await request(app.getHttpServer())
+      .post("/api/v1/accounting/ledger-accounts")
+      .set("Authorization", `Bearer ${ownerAccess}`)
+      .send({ code: "1000", name: "Another Cash Account", type: "ASSET" })
       .expect(409);
   });
 
@@ -203,20 +224,24 @@ describe("Accounting module (e2e)", () => {
   });
 
   it("reports balances by type and a P&L summary", async () => {
+    // 50000 posted manually to the custom "Consulting Revenue" account,
+    // plus 75000 auto-posted to the default "Sales Revenue" account when
+    // the invoice above was created — both are REVENUE-type accounts, so
+    // both count toward the totals here.
     const summary = await request(app.getHttpServer())
       .get("/api/v1/accounting/reports/summary")
       .set("Authorization", `Bearer ${ownerAccess}`)
       .expect(200);
-    expect(summary.body.totalRevenueCents).toBe(50000);
-    expect(summary.body.netIncomeCents).toBe(50000);
+    expect(summary.body.totalRevenueCents).toBe(125000);
+    expect(summary.body.netIncomeCents).toBe(125000);
 
     const byType = await request(app.getHttpServer())
       .get("/api/v1/accounting/reports/balances-by-type")
       .set("Authorization", `Bearer ${ownerAccess}`)
       .expect(200);
     const revenue = byType.body.types.find((t: { type: string }) => t.type === "REVENUE");
-    expect(revenue.creditCents).toBe(50000);
-    expect(revenue.balanceCents).toBe(50000);
+    expect(revenue.creditCents).toBe(125000);
+    expect(revenue.balanceCents).toBe(125000);
   });
 
   it("exports ledger accounts and journal entries as CSV", async () => {
@@ -239,11 +264,12 @@ describe("Accounting module (e2e)", () => {
       .post("/api/v1/graphql")
       .set("Authorization", `Bearer ${ownerAccess}`)
       .send({
-        query: `query { accountingSummary { totalRevenueCents netIncomeCents } ledgerAccounts(page: 1, pageSize: 10) { total } payments(page: 1, pageSize: 10) { total items { amountCents invoiceNumber } } }`,
+        query: `query { accountingSummary { totalRevenueCents netIncomeCents } ledgerAccounts(page: 1, pageSize: 50) { total } payments(page: 1, pageSize: 10) { total items { amountCents invoiceNumber } } }`,
       })
       .expect(200);
-    expect(res.body.data.accountingSummary.totalRevenueCents).toBe(50000);
-    expect(res.body.data.ledgerAccounts.total).toBe(3);
+    expect(res.body.data.accountingSummary.totalRevenueCents).toBe(125000);
+    // 8 auto-provisioned defaults + 3 custom accounts created above.
+    expect(res.body.data.ledgerAccounts.total).toBe(11);
     expect(res.body.data.payments.items[0].amountCents).toBe(75000);
   });
 

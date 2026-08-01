@@ -199,6 +199,7 @@ export interface SalesOrder {
   account: { id: string; name: string } | null;
   quote?: { id: string; quoteNumber: string } | null;
   invoice?: { id: string; invoiceNumber: string } | null;
+  warehouse?: { id: string; name: string; code: string } | null;
   createdAt: string;
 }
 
