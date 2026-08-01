@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import type { PaginatedResult } from "@omniflow/shared";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { toCsv } from "../../../common/utils/csv.util";
+import { DomainEvents } from "../../../common/events/domain-events";
 import { priceLineItems } from "../common/line-item.dto";
 import { formatDocumentNumber } from "../common/document-number.util";
 import { postInvoiceReceivable } from "../common/sales-posting.util";
@@ -19,7 +21,10 @@ const invoiceInclude = {
 
 @Injectable()
 export class InvoicesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: EventEmitter2,
+  ) {}
 
   private buildWhere(companyId: string, query: Pick<ListInvoicesQueryDto, "search" | "status" | "accountId">) {
     return {
@@ -78,6 +83,7 @@ export class InvoicesService {
           totalCents: subtotalCents,
           currency: dto.currency ?? "USD",
           dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
+          ownerId: dto.ownerId,
         },
         include: invoiceInclude,
       });
@@ -123,11 +129,18 @@ export class InvoicesService {
     if (invoice.status === "CANCELLED") {
       throw new BadRequestException("A cancelled invoice cannot be marked as paid");
     }
-    return this.prisma.invoice.update({
+    const paid = await this.prisma.invoice.update({
       where: { id },
       data: { status: "PAID", paidAt: new Date() },
       include: invoiceInclude,
     });
+    this.events.emit(DomainEvents.INVOICE_PAID, {
+      companyId,
+      invoiceId: paid.id,
+      invoiceNumber: paid.invoiceNumber,
+      ownerId: paid.ownerId,
+    });
+    return paid;
   }
 
   async exportCsv(

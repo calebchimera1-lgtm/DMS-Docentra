@@ -1982,3 +1982,43 @@ This is a passive data field today — no journal entries or COGS postings
 are generated from it (that would require inventory costing/valuation,
 out of scope for this fix). It gives Sales a place to record and see
 margin per product without inventing a parallel costing system.
+
+## Notifications wired into business events (system audit)
+
+The audit found the Notifications module itself was solid (its own
+table, its resolver correctly scoped to `user.id`) but nothing outside
+auth/RBAC ever called it — no business event ever produced a
+notification a user could see. `NotificationTriggersListener`
+(`apps/api/src/modules/notifications/notification-triggers.listener.ts`)
+already established the intended pattern (`user.created`,
+`role.granted`); this fix extends it to three real business events via
+the existing `EventEmitter2`/`DomainEvents` bus, the same
+decoupling point the plugin system's webhooks use:
+
+- `DomainEvents.SALES_ORDER_FULFILLED` — emitted from
+  `OrdersService.fulfill()`. Notifies the order's owner ("Sales order
+  fulfilled").
+- `DomainEvents.INVOICE_PAID` — emitted from `InvoicesService.markPaid()`.
+  Notifies the invoice's owner ("Invoice paid").
+- `DomainEvents.LEAVE_REQUEST_REVIEWED` — emitted from
+  `LeaveRequestsService.approve()`/`reject()`. The listener resolves the
+  request's `employeeId` to that employee's linked `User` account (if
+  any) and notifies them ("Leave request approved"/"rejected").
+
+`SalesOrder.ownerId` and `Invoice.ownerId` already existed in the
+schema but were never reachable from the API — `CreateSalesOrderDto`
+and `CreateInvoiceDto` didn't accept them, so they were always `null`
+and this fix would have been wiring notifications to a field nothing
+ever set. Both DTOs now accept an optional `ownerId`, and
+`OrdersService.convertToInvoice()` carries the order's owner onto the
+invoice it generates, so setting an owner once on an order is enough
+for both the fulfillment and payment notifications to reach the same
+person.
+
+Listeners degrade safely rather than erroring: `ownerId` is optional on
+both events (an order/invoice with no owner set simply produces no
+notification), and the leave-request listener no-ops for an employee
+with no linked user account.
+
+Covered by `apps/api/test/notifications.e2e-spec.ts` — previously the
+Notifications module had no e2e coverage at all.

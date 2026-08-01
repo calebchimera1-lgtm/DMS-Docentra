@@ -13,6 +13,9 @@ export const DomainEvents = {
   USER_CREATED: "user.created",
   ROLE_GRANTED: "role.granted",
   AUDIT_LOGGED: "audit.logged",
+  SALES_ORDER_FULFILLED: "sales_order.fulfilled",
+  INVOICE_PAID: "invoice.paid",
+  LEAVE_REQUEST_REVIEWED: "leave_request.reviewed",
 } as const;
 
 export interface NotificationCreatedEvent {
@@ -37,4 +40,25 @@ export interface AuditLoggedEvent {
   action: string;
   entityType: string;
   entityId: string | null;
+}
+
+export interface SalesOrderFulfilledEvent {
+  companyId: string;
+  orderId: string;
+  orderNumber: string;
+  ownerId: string | null;
+}
+
+export interface InvoicePaidEvent {
+  companyId: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  ownerId: string | null;
+}
+
+export interface LeaveRequestReviewedEvent {
+  companyId: string;
+  leaveRequestId: string;
+  employeeId: string;
+  status: "APPROVED" | "REJECTED";
 }

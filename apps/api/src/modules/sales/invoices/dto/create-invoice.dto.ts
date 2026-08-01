@@ -30,4 +30,9 @@ export class CreateInvoiceDto {
   @IsString()
   @MaxLength(3)
   currency?: string;
+
+  @ApiPropertyOptional({ description: "User to notify on invoice lifecycle events (e.g. payment)." })
+  @IsOptional()
+  @IsUUID()
+  ownerId?: string;
 }

@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import type { PaginatedResult } from "@omniflow/shared";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { toCsv } from "../../../common/utils/csv.util";
+import { DomainEvents } from "../../../common/events/domain-events";
 import { priceLineItems, type PricedLineItem } from "../common/line-item.dto";
 import { formatDocumentNumber } from "../common/document-number.util";
 import { postInvoiceReceivable } from "../common/sales-posting.util";
@@ -22,7 +24,10 @@ const orderInclude = {
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: EventEmitter2,
+  ) {}
 
   private buildWhere(companyId: string, query: Pick<ListOrdersQueryDto, "search" | "status" | "accountId">) {
     return {
@@ -82,6 +87,7 @@ export class OrdersService {
         items: items as unknown as object,
         totalCents: subtotalCents,
         currency: dto.currency ?? "USD",
+        ownerId: dto.ownerId,
       },
       include: orderInclude,
     });
@@ -191,6 +197,14 @@ export class OrdersService {
         data: { status: "FULFILLED", warehouseId },
         include: orderInclude,
       });
+    }).then((fulfilled) => {
+      this.events.emit(DomainEvents.SALES_ORDER_FULFILLED, {
+        companyId,
+        orderId: fulfilled.id,
+        orderNumber: fulfilled.orderNumber,
+        ownerId: fulfilled.ownerId,
+      });
+      return fulfilled;
     });
   }
 
@@ -223,6 +237,7 @@ export class OrdersService {
           totalCents: order.totalCents,
           currency: order.currency,
           dueDate,
+          ownerId: order.ownerId,
         },
       });
 

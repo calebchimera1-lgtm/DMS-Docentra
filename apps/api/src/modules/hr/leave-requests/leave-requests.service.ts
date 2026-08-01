@@ -1,7 +1,9 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import type { PaginatedResult } from "@omniflow/shared";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { toCsv } from "../../../common/utils/csv.util";
+import { DomainEvents } from "../../../common/events/domain-events";
 import type { CreateLeaveRequestDto } from "./dto/create-leave-request.dto";
 import type { ListLeaveRequestsQueryDto } from "./dto/list-leave-requests-query.dto";
 
@@ -14,7 +16,10 @@ const leaveRequestInclude = {
 
 @Injectable()
 export class LeaveRequestsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: EventEmitter2,
+  ) {}
 
   private buildWhere(companyId: string, query: Pick<ListLeaveRequestsQueryDto, "status" | "type" | "employeeId">) {
     return {
@@ -93,11 +98,18 @@ export class LeaveRequestsService {
       throw new BadRequestException("Only a pending leave request can be approved");
     }
     const approver = await this.resolveCurrentEmployee(companyId, currentUserId);
-    return this.prisma.leaveRequest.update({
+    const reviewed = await this.prisma.leaveRequest.update({
       where: { id },
       data: { status: "APPROVED", approverId: approver.id, reviewedAt: new Date() },
       include: leaveRequestInclude,
     });
+    this.events.emit(DomainEvents.LEAVE_REQUEST_REVIEWED, {
+      companyId,
+      leaveRequestId: reviewed.id,
+      employeeId: reviewed.employeeId,
+      status: "APPROVED",
+    });
+    return reviewed;
   }
 
   async reject(companyId: string, currentUserId: string, id: string) {
@@ -106,11 +118,18 @@ export class LeaveRequestsService {
       throw new BadRequestException("Only a pending leave request can be rejected");
     }
     const approver = await this.resolveCurrentEmployee(companyId, currentUserId);
-    return this.prisma.leaveRequest.update({
+    const reviewed = await this.prisma.leaveRequest.update({
       where: { id },
       data: { status: "REJECTED", approverId: approver.id, reviewedAt: new Date() },
       include: leaveRequestInclude,
     });
+    this.events.emit(DomainEvents.LEAVE_REQUEST_REVIEWED, {
+      companyId,
+      leaveRequestId: reviewed.id,
+      employeeId: reviewed.employeeId,
+      status: "REJECTED",
+    });
+    return reviewed;
   }
 
   async cancel(companyId: string, id: string) {

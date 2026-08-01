@@ -18,6 +18,11 @@ export class CreateSalesOrderDto {
   @IsUUID()
   warehouseId?: string;
 
+  @ApiPropertyOptional({ description: "User to notify on order lifecycle events (e.g. fulfillment)." })
+  @IsOptional()
+  @IsUUID()
+  ownerId?: string;
+
   @ApiProperty({ type: [LineItemDto] })
   @IsArray()
   @ArrayMinSize(1)
