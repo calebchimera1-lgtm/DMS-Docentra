@@ -87,6 +87,15 @@ export class AuthService {
         })),
       });
 
+      // Installs every catalogued business module (App Registry) for the
+      // new company — the sidebar is generated from installed apps +
+      // permissions (see PluginsService.navigationForUser), not hard-coded,
+      // so a company needs these rows to see any module at all.
+      const moduleApps = await tx.plugin.findMany({ where: { kind: "MODULE", isActive: true } });
+      await tx.companyPlugin.createMany({
+        data: moduleApps.map((app) => ({ companyId: company.id, pluginId: app.id, isEnabled: true })),
+      });
+
       const permissions = await tx.permission.findMany();
       const superAdminRole = await tx.role.create({
         data: {

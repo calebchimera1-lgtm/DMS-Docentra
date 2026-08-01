@@ -1843,3 +1843,52 @@ activate/deactivate, a subscriptions list whose actions follow the
 lifecycle (Activate for trials, Bill period / Pause for active, Resume for
 paused), and a subscription detail page showing the billing history with
 each period's generated invoice and its status.
+
+## App Registry & dynamic navigation (system audit)
+
+Confirmed by the system audit: the sidebar was a hard-coded 21-entry
+array (`apps/web/src/components/sidebar.tsx`) with no relationship to
+any backend registry — installing or removing a module meant editing
+and redeploying frontend code, not a runtime action. Separately, a
+`Plugin`/`CompanyPlugin` pair already existed for third-party
+integrations (Slack/Zapier-style webhooks) but had no connection to
+business modules.
+
+Rather than build a second, parallel "App"/"CompanyApp" schema next to
+Plugin/CompanyPlugin — the two are structurally identical (a catalog
+entry plus per-company install/enable state) — `Plugin` gained a `kind`
+column (`MODULE | INTEGRATION`) and the fields an app registry actually
+needs: `icon` (a Lucide icon name, since components can't live in a
+database), `route`, `permissionModule` (the `PERMISSIONS` prefix a user
+needs `:read` on to see it), and `sortOrder`. The catalog
+(`apps/api/src/modules/plugins/plugin-catalog.ts`) now has 21 `MODULE`
+entries — one per business module plus Dashboard — alongside the
+existing `webhook-notifier` `INTEGRATION` entry, self-seeded on boot the
+same way it always was.
+
+### Installation
+
+`AuthService.register` installs every `MODULE`-kind plugin
+(`CompanyPlugin`, `isEnabled: true`) for a company at registration time,
+in the same transaction as the chart-of-accounts provisioning — a
+company's installed apps exist from the moment it does, not as a
+separate onboarding step. `INTEGRATION`-kind plugins are **not**
+auto-installed; those stay opt-in through the existing
+`POST /plugins/:key/enable` flow.
+
+### `GET /plugins/nav`
+
+The sidebar's actual data source: `PluginsService.navigationForUser()`
+loads the company's installed+enabled `MODULE` plugins, intersects them
+with the current user's effective permissions (a plugin with no
+`permissionModule` — Dashboard — is always visible), sorts by
+`sortOrder`, and returns `{ key, name, icon, route }[]`. No permission
+gate on the route itself (unlike `GET /plugins`, which stays behind
+`settings:manage`) — every authenticated user needs their own nav.
+
+`apps/web/src/components/sidebar.tsx` fetches this on mount and maps
+the `icon` string through a fixed `ICON_MAP` (falling back to a generic
+icon for anything unrecognized) instead of importing a static
+`NAV_ITEMS` array. Disabling a module via `POST /plugins/:key/disable`
+removes it from every user's sidebar in that company immediately — no
+code change, no redeploy — verified live (see `docs/audit/` findings).

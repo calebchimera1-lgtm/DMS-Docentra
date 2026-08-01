@@ -620,16 +620,42 @@ model Setting {
   @@map("settings")
 }
 
-/// The catalog of installable plugins (plugin system).
+/// MODULE: one of the 20 core business modules (CRM, Sales, ...) — these
+/// drive the sidebar. INTEGRATION: a lightweight third-party hook (Slack,
+/// Zapier, a webhook) reacting to domain events. Same catalog +
+/// per-company install/enable shape either way (a "plugin" is just an
+/// installable unit); this is what actually distinguishes them.
+enum PluginKind {
+  MODULE
+  INTEGRATION
+}
+
+/// The catalog of installable plugins (plugin system) — this is also the
+/// app registry: every MODULE-kind row here is a business module the
+/// sidebar can show, so navigation is generated from installed apps +
+/// permissions rather than hard-coded.
 model Plugin {
-  id          String   @id @default(uuid())
-  key         String   @unique
-  name        String
+  id     String     @id @default(uuid())
+  key    String     @unique
+  kind   PluginKind @default(INTEGRATION)
+  name   String
   description String?
   version     String
   author      String?
   isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
+  /// Lucide icon component name (MODULE only) — the frontend looks this
+  /// string up in a fixed icon map, since components can't be stored in
+  /// the database.
+  icon             String?
+  /// Base route this module's pages live under (MODULE only), e.g. "/crm".
+  route            String?
+  /// The PERMISSIONS module prefix (e.g. "crm") a user needs `:read` on to
+  /// see this in navigation (MODULE only). Null means always visible to
+  /// anyone in the company (e.g. Dashboard).
+  permissionModule String?  @map("permission_module")
+  /// Sidebar ordering (MODULE only).
+  sortOrder        Int      @default(0) @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at")
 
   companies CompanyPlugin[]
 

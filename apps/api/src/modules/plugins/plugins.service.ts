@@ -1,23 +1,39 @@
 import { Injectable, Logger, NotFoundException, OnModuleInit } from "@nestjs/common";
 import type { Prisma } from "@omniflow/database";
 import { PrismaService } from "../../prisma/prisma.service";
+import { AuthorizationService } from "../../common/authorization/authorization.service";
 import { PLUGIN_CATALOG } from "./plugin-catalog";
+
+export interface NavItem {
+  key: string;
+  name: string;
+  icon: string | null;
+  route: string | null;
+}
 
 @Injectable()
 export class PluginsService implements OnModuleInit {
   private readonly logger = new Logger(PluginsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authorization: AuthorizationService,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     for (const definition of PLUGIN_CATALOG) {
       await this.prisma.plugin.upsert({
         where: { key: definition.key },
         update: {
+          kind: definition.kind,
           name: definition.name,
           description: definition.description,
           version: definition.version,
           author: definition.author,
+          icon: definition.icon,
+          route: definition.route,
+          permissionModule: definition.permissionModule,
+          sortOrder: definition.sortOrder ?? 0,
         },
         create: definition,
       });
@@ -34,6 +50,30 @@ export class PluginsService implements OnModuleInit {
       where: { companyId },
       include: { plugin: true },
     });
+  }
+
+  /**
+   * The sidebar's data source: this company's installed, enabled MODULE
+   * plugins, filtered to the ones the current user actually has
+   * `<permissionModule>:read` for (a module with no permissionModule —
+   * Dashboard — is always visible to anyone in the company). Nothing here
+   * is hard-coded per module; installing/enabling a Plugin is what makes
+   * it appear.
+   */
+  async navigationForUser(companyId: string, userId: string): Promise<NavItem[]> {
+    const [installed, effectivePermissions] = await Promise.all([
+      this.prisma.companyPlugin.findMany({
+        where: { companyId, isEnabled: true, plugin: { kind: "MODULE", isActive: true } },
+        include: { plugin: true },
+      }),
+      this.authorization.getEffectivePermissions(userId),
+    ]);
+
+    return installed
+      .map((companyPlugin) => companyPlugin.plugin)
+      .filter((plugin) => !plugin.permissionModule || effectivePermissions.has(`${plugin.permissionModule}:read`))
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((plugin) => ({ key: plugin.key, name: plugin.name, icon: plugin.icon, route: plugin.route }));
   }
 
   async enable(companyId: string, pluginKey: string, config?: Prisma.InputJsonValue) {

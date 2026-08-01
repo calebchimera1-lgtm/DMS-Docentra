@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -11,6 +12,7 @@ import {
   FolderKanban,
   LayoutDashboard,
   LifeBuoy,
+  Package,
   Receipt,
   ShoppingBag,
   ShoppingCart,
@@ -28,76 +30,84 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@omniflow/ui";
+import { apiClient } from "../lib/api-client";
 
-interface NavItem {
-  label: string;
-  href: string;
-  icon: LucideIcon;
-  disabled?: boolean;
+/**
+ * Maps the icon name string the API returns (Plugin.icon, set from the
+ * app-registry catalog) to the actual component — icons can't be stored
+ * in the database, so this is the one place that translates between the
+ * two. `Package` is the fallback for an icon name this build doesn't
+ * recognize, so an unrecognized module still renders instead of crashing.
+ */
+const ICON_MAP: Record<string, LucideIcon> = {
+  LayoutDashboard,
+  Users2,
+  ShoppingCart,
+  Boxes,
+  Banknote,
+  UsersRound,
+  FolderKanban,
+  LifeBuoy,
+  ShoppingBag,
+  Wallet,
+  Receipt,
+  Building2,
+  UserSearch,
+  FileSignature,
+  Wrench,
+  Store,
+  CalendarCheck,
+  Truck,
+  PackageCheck,
+  FileStack,
+  CreditCard,
+};
+
+interface NavApiItem {
+  key: string;
+  name: string;
+  icon: string | null;
+  route: string | null;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "CRM", href: "/crm", icon: Users2 },
-  { label: "Sales", href: "/sales", icon: ShoppingCart },
-  { label: "Inventory", href: "/inventory", icon: Boxes },
-  { label: "Accounting", href: "/accounting", icon: Banknote },
-  { label: "HR", href: "/hr", icon: UsersRound },
-  { label: "Projects", href: "/projects", icon: FolderKanban },
-  { label: "Support", href: "/support", icon: LifeBuoy },
-  { label: "Purchase", href: "/purchase", icon: ShoppingBag },
-  { label: "Payroll", href: "/payroll", icon: Wallet },
-  { label: "Expenses", href: "/expenses", icon: Receipt },
-  { label: "Assets", href: "/assets", icon: Building2 },
-  { label: "Recruitment", href: "/recruitment", icon: UserSearch },
-  { label: "Contracts", href: "/contracts", icon: FileSignature },
-  { label: "Manufacturing", href: "/manufacturing", icon: Wrench },
-  { label: "Point of Sale", href: "/pos", icon: Store },
-  { label: "Attendance", href: "/attendance", icon: CalendarCheck },
-  { label: "Fleet Management", href: "/fleet", icon: Truck },
-  { label: "Logistics", href: "/logistics", icon: PackageCheck },
-  { label: "Documents", href: "/documents", icon: FileStack },
-  { label: "Subscription Billing", href: "/billing", icon: CreditCard },
-];
+function useNavItems(): NavApiItem[] {
+  const [items, setItems] = useState<NavApiItem[]>([]);
+
+  useEffect(() => {
+    void apiClient.get<NavApiItem[]>("/plugins/nav").then(setItems);
+  }, []);
+
+  return items;
+}
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  const items = useNavItems();
 
   return (
     <nav className="flex flex-1 flex-col gap-1 px-3" aria-label="Primary">
-      {NAV_ITEMS.map((item) => {
-        const isActive = pathname?.startsWith(item.href);
-        const Icon = item.icon;
+      {items
+        .filter((item) => item.route)
+        .map((item) => {
+          const isActive = pathname?.startsWith(item.route!);
+          const Icon = (item.icon && ICON_MAP[item.icon]) || Package;
 
-        if (item.disabled) {
           return (
-            <span
-              key={item.href}
-              className="flex cursor-not-allowed items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground/50"
-              title="Coming soon"
+            <Link
+              key={item.key}
+              href={item.route!}
+              onClick={onNavigate}
+              className={cn(
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                isActive ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted",
+              )}
+              aria-current={isActive ? "page" : undefined}
             >
               <Icon className="h-4 w-4" />
-              {item.label}
-            </span>
+              {item.name}
+            </Link>
           );
-        }
-
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              isActive ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted",
-            )}
-            aria-current={isActive ? "page" : undefined}
-          >
-            <Icon className="h-4 w-4" />
-            {item.label}
-          </Link>
-        );
-      })}
+        })}
     </nav>
   );
 }
@@ -110,7 +120,7 @@ export function Sidebar() {
       </div>
       <NavLinks />
       <div className="border-t border-border px-6 py-4 text-xs text-muted-foreground">
-        More modules land in upcoming milestones.
+        Navigation reflects your installed apps and permissions.
       </div>
     </aside>
   );
