@@ -806,6 +806,10 @@ model Product {
   name           String
   description    String?
   unitPriceCents Int       @default(0) @map("unit_price_cents")
+  /// Unit cost (COGS), separate from unitPriceCents (the selling price).
+  /// Nullable — an existing product predating this field, or one a
+  /// company hasn't costed yet, has no cost basis to report margin from.
+  costPriceCents Int?      @map("cost_price_cents")
   currency       String    @default("USD")
   isActive       Boolean   @default(true) @map("is_active")
   createdAt      DateTime  @default(now()) @map("created_at")

@@ -63,14 +63,22 @@ describe("Sales module (e2e)", () => {
     await app.close();
   });
 
-  it("creates a product", async () => {
+  it("creates a product, with an optional cost price for COGS/margin reporting", async () => {
     const res = await request(app.getHttpServer())
       .post("/api/v1/sales/products")
       .set("Authorization", `Bearer ${ownerAccess}`)
-      .send({ sku: "WIDGET-1", name: "Widget", unitPriceCents: 2500 })
+      .send({ sku: "WIDGET-1", name: "Widget", unitPriceCents: 2500, costPriceCents: 1500 })
       .expect(201);
     productId = res.body.id;
     expect(res.body.sku).toBe("WIDGET-1");
+    expect(res.body.costPriceCents).toBe(1500);
+
+    const noCost = await request(app.getHttpServer())
+      .post("/api/v1/sales/products")
+      .set("Authorization", `Bearer ${ownerAccess}`)
+      .send({ sku: "WIDGET-UNCOSTED", name: "Uncosted Widget", unitPriceCents: 1000 })
+      .expect(201);
+    expect(noCost.body.costPriceCents).toBeNull();
   });
 
   it("auto-provisions a chart of accounts on company registration", async () => {

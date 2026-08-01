@@ -157,6 +157,7 @@ export interface Product {
   name: string;
   description: string | null;
   unitPriceCents: number;
+  costPriceCents: number | null;
   currency: string;
   isActive: boolean;
   createdAt: string;

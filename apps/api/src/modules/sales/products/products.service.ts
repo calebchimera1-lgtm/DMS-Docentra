@@ -86,8 +86,26 @@ export class ProductsService {
       where,
       orderBy: { createdAt: "desc" },
       take: EXPORT_ROW_LIMIT,
-      select: { id: true, sku: true, name: true, unitPriceCents: true, currency: true, isActive: true, createdAt: true },
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        unitPriceCents: true,
+        costPriceCents: true,
+        currency: true,
+        isActive: true,
+        createdAt: true,
+      },
     });
-    return toCsv(rows, ["id", "sku", "name", "unitPriceCents", "currency", "isActive", "createdAt"]);
+    return toCsv(rows, [
+      "id",
+      "sku",
+      "name",
+      "unitPriceCents",
+      "costPriceCents",
+      "currency",
+      "isActive",
+      "createdAt",
+    ]);
   }
 }

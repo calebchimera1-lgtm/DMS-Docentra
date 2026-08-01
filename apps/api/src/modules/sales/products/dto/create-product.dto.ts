@@ -25,6 +25,12 @@ export class CreateProductDto {
   @Min(0)
   unitPriceCents!: number;
 
+  @ApiPropertyOptional({ description: "Unit cost (COGS) in cents — what the item costs to acquire or produce" })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  costPriceCents?: number;
+
   @ApiPropertyOptional({ default: "USD" })
   @IsOptional()
   @IsString()

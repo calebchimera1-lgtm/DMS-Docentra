@@ -1956,3 +1956,29 @@ outstanding `SENT`/`OVERDUE` invoice and calls the resolved provider's
 With only the manual provider registered, `collect-payment` always comes
 back `PENDING` — that's the honest state of the system today, not a
 placeholder that pretends otherwise.
+
+## Product cost/COGS field (system audit)
+
+The audit flagged that `Product` had no cost basis, so Sales had no way
+to report margin — every product page showed revenue only, with no idea
+whether an order was profitable. `Product.costPriceCents` (optional
+`Int`, migration `20260801220202_product_cost_price`) closes that gap:
+
+- `CreateProductDto.costPriceCents` — optional, non-negative integer
+  cents. Products created without a cost (the common case for services
+  or not-yet-costed items) simply have `costPriceCents: null`; nothing
+  downstream assumes it's set.
+- `ProductsService.exportCsv()` includes `costPriceCents` as a column so
+  the CSV export carries the same cost data as the UI.
+- GraphQL parity: `ProductType.costPriceCents` is a nullable `Int` field.
+- Frontend (`/sales/products`): a "Cost (USD, optional)" input next to
+  the existing Price field, and two new table columns — Cost and
+  Margin, where margin is computed client-side as
+  `round((unitPriceCents - costPriceCents) / unitPriceCents * 100)`.
+  Products with no cost on record show `—` in both columns rather than
+  a misleading `0%`.
+
+This is a passive data field today — no journal entries or COGS postings
+are generated from it (that would require inventory costing/valuation,
+out of scope for this fix). It gives Sales a place to record and see
+margin per product without inventing a parallel costing system.

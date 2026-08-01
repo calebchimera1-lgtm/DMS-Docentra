@@ -17,6 +17,9 @@ export class ProductType {
   @Field(() => Int)
   unitPriceCents!: number;
 
+  @Field(() => Int, { nullable: true })
+  costPriceCents?: number;
+
   @Field()
   currency!: string;
 

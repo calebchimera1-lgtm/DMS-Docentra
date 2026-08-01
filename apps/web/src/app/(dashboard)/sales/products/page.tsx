@@ -20,6 +20,7 @@ export default function ProductsPage() {
   const [sku, setSku] = useState("");
   const [name, setName] = useState("");
   const [priceDollars, setPriceDollars] = useState("");
+  const [costDollars, setCostDollars] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,10 +41,12 @@ export default function ProductsPage() {
         sku,
         name,
         unitPriceCents: Math.round(parseFloat(priceDollars || "0") * 100),
+        costPriceCents: costDollars ? Math.round(parseFloat(costDollars) * 100) : undefined,
       });
       setSku("");
       setName("");
       setPriceDollars("");
+      setCostDollars("");
       setShowCreate(false);
       load();
     } catch (err) {
@@ -91,7 +94,7 @@ export default function ProductsPage() {
       {showCreate && (
         <Card>
           <CardContent className="flex flex-col gap-3 p-4">
-            <form onSubmit={handleCreate} className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+            <form onSubmit={handleCreate} className="grid grid-cols-1 gap-3 sm:grid-cols-5">
               <Input placeholder="SKU" value={sku} onChange={(e) => setSku(e.target.value)} required />
               <Input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
               <Input
@@ -102,7 +105,15 @@ export default function ProductsPage() {
                 value={priceDollars}
                 onChange={(e) => setPriceDollars(e.target.value)}
               />
-              <Button type="submit" disabled={submitting} className="sm:col-start-4">
+              <Input
+                placeholder="Cost (USD, optional)"
+                type="number"
+                min="0"
+                step="0.01"
+                value={costDollars}
+                onChange={(e) => setCostDollars(e.target.value)}
+              />
+              <Button type="submit" disabled={submitting} className="sm:col-start-5">
                 {submitting ? "Creating…" : "Create product"}
               </Button>
             </form>
@@ -119,35 +130,47 @@ export default function ProductsPage() {
                 <th className="p-3 font-medium">SKU</th>
                 <th className="p-3 font-medium">Name</th>
                 <th className="p-3 font-medium">Price</th>
+                <th className="p-3 font-medium">Cost</th>
+                <th className="p-3 font-medium">Margin</th>
                 <th className="p-3 font-medium">Status</th>
               </tr>
             </thead>
             <tbody>
               {result === null ? (
                 <tr>
-                  <td colSpan={4} className="p-4 text-center text-muted-foreground">
+                  <td colSpan={6} className="p-4 text-center text-muted-foreground">
                     Loading…
                   </td>
                 </tr>
               ) : result.items.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-4 text-center text-muted-foreground">
+                  <td colSpan={6} className="p-4 text-center text-muted-foreground">
                     No products yet.
                   </td>
                 </tr>
               ) : (
-                result.items.map((p) => (
-                  <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/50">
-                    <td className="p-3 font-medium text-foreground">{p.sku}</td>
-                    <td className="p-3 text-muted-foreground">{p.name}</td>
-                    <td className="p-3 text-muted-foreground">{formatCents(p.unitPriceCents, p.currency)}</td>
-                    <td className="p-3">
-                      <Badge variant={p.isActive ? "default" : "outline"}>
-                        {p.isActive ? "Active" : "Inactive"}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))
+                result.items.map((p) => {
+                  const margin =
+                    p.costPriceCents != null && p.unitPriceCents > 0
+                      ? Math.round(((p.unitPriceCents - p.costPriceCents) / p.unitPriceCents) * 100)
+                      : null;
+                  return (
+                    <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/50">
+                      <td className="p-3 font-medium text-foreground">{p.sku}</td>
+                      <td className="p-3 text-muted-foreground">{p.name}</td>
+                      <td className="p-3 text-muted-foreground">{formatCents(p.unitPriceCents, p.currency)}</td>
+                      <td className="p-3 text-muted-foreground">
+                        {p.costPriceCents != null ? formatCents(p.costPriceCents, p.currency) : "—"}
+                      </td>
+                      <td className="p-3 text-muted-foreground">{margin != null ? `${margin}%` : "—"}</td>
+                      <td className="p-3">
+                        <Badge variant={p.isActive ? "default" : "outline"}>
+                          {p.isActive ? "Active" : "Inactive"}
+                        </Badge>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
