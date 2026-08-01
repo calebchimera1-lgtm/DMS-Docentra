@@ -365,6 +365,31 @@ restricted to the comment's own author) — so any future module can add
 a comment thread to its records with zero new backend code, the same
 way Attachments already works for file uploads.
 
+Because `entityType` is a free-text field decided at request time
+rather than a fixed route, the usual static `@RequirePermissions(...)`
+decorator can't express "you need CRM permissions to comment on a
+CrmAccount but Sales permissions to comment on a Quote." That gap
+originally meant Comments/Attachments carried **no permission check at
+all** — any authenticated user, regardless of role, could read or
+write comments/attachments against any record in the company. Fixed by
+`apps/api/src/common/polymorphic/`:
+
+- `polymorphic-entity.registry.ts` — the single source of truth
+  mapping each supported `entityType` to the module read/write
+  permission it belongs to, plus the Prisma delegate used to verify
+  the referenced record actually exists.
+- `polymorphic-access.service.ts` (`PolymorphicAccessService`,
+  registered globally like `AuthorizationService`) — `assertAccess()`
+  checks the caller holds the right permission for the entity type in
+  question; `assertEntityExists()` checks the referenced id is real
+  and belongs to the caller's company before a comment/attachment can
+  be filed against it, closing the "orphan write against a
+  nonexistent or wrong-tenant id" gap noted in the system audit.
+
+Both `CommentsService` and `AttachmentsService` call these before
+touching the database. An `entityType` outside the registry is
+rejected with `400`, not silently accepted.
+
 ### Frontend
 
 `apps/web/src/app/(dashboard)/crm/` — an overview page (stat tiles +

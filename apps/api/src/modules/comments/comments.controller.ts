@@ -22,7 +22,7 @@ export class CommentsController {
   @Get()
   @ApiOperation({ summary: "List comments for a record" })
   list(@CurrentUser() user: RequestUser, @Query() query: ListCommentsQueryDto) {
-    return this.commentsService.list(user.companyId, query.entityType, query.entityId);
+    return this.commentsService.list(user.companyId, user.id, query.entityType, query.entityId);
   }
 
   @Patch(":id")

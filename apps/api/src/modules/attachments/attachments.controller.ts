@@ -50,19 +50,19 @@ export class AttachmentsController {
   @Get()
   @ApiOperation({ summary: "List attachments for a record" })
   list(@CurrentUser() user: RequestUser, @Query() query: ListAttachmentsQueryDto) {
-    return this.attachmentsService.list(user.companyId, query.entityType, query.entityId);
+    return this.attachmentsService.list(user.companyId, user.id, query.entityType, query.entityId);
   }
 
   @Get(":id/download")
   @ApiOperation({ summary: "Get a short-lived signed URL to download this attachment" })
   getDownloadUrl(@CurrentUser() user: RequestUser, @Param("id") id: string) {
-    return this.attachmentsService.getDownloadUrl(user.companyId, id);
+    return this.attachmentsService.getDownloadUrl(user.companyId, user.id, id);
   }
 
   @Delete(":id")
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Delete an attachment" })
   async remove(@CurrentUser() user: RequestUser, @Param("id") id: string): Promise<void> {
-    await this.attachmentsService.remove(user.companyId, id);
+    await this.attachmentsService.remove(user.companyId, user.id, id);
   }
 }

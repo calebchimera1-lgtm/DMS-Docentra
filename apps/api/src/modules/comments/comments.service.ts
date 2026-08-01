@@ -1,20 +1,29 @@
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
+import { PolymorphicAccessService } from "../../common/polymorphic/polymorphic-access.service";
 
 const authorSelect = { id: true, firstName: true, lastName: true } as const;
 
 @Injectable()
 export class CommentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly access: PolymorphicAccessService,
+  ) {}
 
   async create(companyId: string, authorId: string, entityType: string, entityId: string, body: string) {
+    await this.access.assertAccess(authorId, entityType, "write");
+    await this.access.assertEntityExists(companyId, entityType, entityId);
+
     return this.prisma.comment.create({
       data: { companyId, authorId, entityType, entityId, body },
       include: { author: { select: authorSelect } },
     });
   }
 
-  async list(companyId: string, entityType: string, entityId: string) {
+  async list(companyId: string, userId: string, entityType: string, entityId: string) {
+    await this.access.assertAccess(userId, entityType, "read");
+
     return this.prisma.comment.findMany({
       where: { companyId, entityType, entityId, deletedAt: null },
       include: { author: { select: authorSelect } },

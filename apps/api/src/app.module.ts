@@ -8,6 +8,7 @@ import { GraphQLModule } from "@nestjs/graphql";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { AuditInterceptor } from "./common/audit/audit.interceptor";
 import { AuthorizationModule } from "./common/authorization/authorization.module";
+import { PolymorphicAccessModule } from "./common/polymorphic/polymorphic-access.module";
 import { CryptoModule } from "./common/crypto/crypto.module";
 import { AppThrottlerGuard } from "./common/guards/throttler.guard";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
@@ -70,6 +71,7 @@ import { RealtimeModule } from "./realtime/realtime.module";
     StorageModule,
     JobsModule,
     AuthorizationModule,
+    PolymorphicAccessModule,
     AuthModule,
     PermissionsModule,
     UsersModule,
