@@ -20,6 +20,18 @@ const config: Config = {
           DEFAULT: "hsl(var(--muted) / <alpha-value>)",
           foreground: "hsl(var(--muted-foreground) / <alpha-value>)",
         },
+        navy: {
+          DEFAULT: "hsl(var(--navy) / <alpha-value>)",
+          foreground: "hsl(var(--navy-foreground) / <alpha-value>)",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning) / <alpha-value>)",
+          foreground: "hsl(var(--warning-foreground) / <alpha-value>)",
+        },
+        highlight: {
+          DEFAULT: "hsl(var(--highlight) / <alpha-value>)",
+          foreground: "hsl(var(--highlight-foreground) / <alpha-value>)",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

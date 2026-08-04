@@ -16,6 +16,18 @@
     --border: 240 6% 88%;
     --radius: 0.25rem;
 
+    /* Secondary brand accents alongside the purple primary — navy for the
+       nav rail, orange/yellow as status-badge fills. Not chart identity
+       colors (see dataviz skill: a single-measure category breakdown is
+       one series/one hue, so --chart-series-1 stays purple below) — these
+       are UI-chrome and status colors, checked for text contrast instead. */
+    --navy: 221 51% 16%;
+    --navy-foreground: 0 0% 100%;
+    --warning: 17 82% 56%;
+    --warning-foreground: 0 0% 10%;
+    --highlight: 41 100% 46%;
+    --highlight-foreground: 0 0% 10%;
+
     /* Data visualization — see dataviz skill's reference palette. */
     --chart-series-1: #714b67;
     --chart-gridline: #e1e0d9;
@@ -29,6 +41,13 @@
     --muted: 222 18% 18%;
     --muted-foreground: 215 15% 65%;
     --border: 222 18% 22%;
+
+    --navy: 221 51% 16%;
+    --navy-foreground: 0 0% 100%;
+    --warning: 17 70% 50%;
+    --warning-foreground: 0 0% 10%;
+    --highlight: 40 100% 39%;
+    --highlight-foreground: 0 0% 10%;
 
     --chart-series-1: #a9789b;
     --chart-gridline: #2c2c2a;

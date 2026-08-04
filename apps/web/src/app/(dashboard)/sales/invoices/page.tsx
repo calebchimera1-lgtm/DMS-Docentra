@@ -117,7 +117,19 @@ export default function InvoicesPage() {
                       {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString() : "—"}
                     </td>
                     <td className="p-3">
-                      <Badge variant={inv.status === "PAID" ? "default" : "outline"}>{inv.status}</Badge>
+                      <Badge
+                        variant={
+                          inv.status === "PAID"
+                            ? "default"
+                            : inv.status === "OVERDUE"
+                              ? "warning"
+                              : inv.status === "SENT"
+                                ? "highlight"
+                                : "outline"
+                        }
+                      >
+                        {inv.status}
+                      </Badge>
                     </td>
                     <td className="p-3 text-right">
                       {canWrite && inv.status !== "PAID" && inv.status !== "CANCELLED" && (

@@ -99,7 +99,9 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
               onClick={onNavigate}
               className={cn(
                 "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                isActive ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted",
+                isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-navy-foreground/80 hover:bg-white/10 hover:text-navy-foreground",
               )}
               aria-current={isActive ? "page" : undefined}
             >
@@ -114,12 +116,12 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 
 export function Sidebar() {
   return (
-    <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-background md:flex">
+    <aside className="hidden w-60 shrink-0 flex-col bg-navy text-navy-foreground md:flex">
       <div className="flex h-16 items-center px-6">
         <span className="text-lg font-semibold tracking-tight">Omniflow</span>
       </div>
       <NavLinks />
-      <div className="border-t border-border px-6 py-4 text-xs text-muted-foreground">
+      <div className="border-t border-white/10 px-6 py-4 text-xs text-navy-foreground/60">
         Navigation reflects your installed apps and permissions.
       </div>
     </aside>
@@ -132,10 +134,10 @@ export function MobileSidebar({ open, onClose }: { open: boolean; onClose: () =>
   return (
     <div className="fixed inset-0 z-40 md:hidden">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden />
-      <aside className="absolute inset-y-0 left-0 flex w-64 flex-col bg-background shadow-xl">
+      <aside className="absolute inset-y-0 left-0 flex w-64 flex-col bg-navy text-navy-foreground shadow-xl">
         <div className="flex h-16 items-center justify-between px-6">
           <span className="text-lg font-semibold tracking-tight">Omniflow</span>
-          <button type="button" onClick={onClose} aria-label="Close menu" className="text-muted-foreground">
+          <button type="button" onClick={onClose} aria-label="Close menu" className="text-navy-foreground/70">
             <X className="h-5 w-5" />
           </button>
         </div>

@@ -52,3 +52,13 @@ rationale).
   Roboto (`next/font/google` in `app/layout.tsx`, exposed as
   `--font-roboto`), matching Odoo's backend typeface. Both light and dark
   variants were re-tuned so the purple accent stays legible in both.
+  Three secondary accents extend the palette: `--navy` (nav rail
+  background), `--warning` (orange) and `--highlight` (yellow) as new
+  `Badge` variants in `packages/ui`. These are UI-chrome/status colors,
+  not chart-identity colors, so they were checked for WCAG text contrast
+  (`navy`/white 10:1, `warning`/dark-text 5.4:1, `highlight`/dark-text
+  8:1) rather than run through the dataviz skill's categorical-palette
+  validator — that validator governs series-identity colors in a chart,
+  and per its own rule a single-measure category breakdown (e.g. the
+  dashboard's "Activity by action") stays one series/one hue
+  (`--chart-series-1`, still purple), not per-bar colors.

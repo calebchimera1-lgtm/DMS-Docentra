@@ -195,7 +195,19 @@ export default function LeaveRequestsPage() {
                       {new Date(lr.startDate).toLocaleDateString()} – {new Date(lr.endDate).toLocaleDateString()}
                     </td>
                     <td className="p-3">
-                      <Badge variant={lr.status === "APPROVED" ? "default" : "outline"}>{lr.status}</Badge>
+                      <Badge
+                        variant={
+                          lr.status === "APPROVED"
+                            ? "default"
+                            : lr.status === "PENDING"
+                              ? "warning"
+                              : lr.status === "REJECTED"
+                                ? "outline"
+                                : "secondary"
+                        }
+                      >
+                        {lr.status}
+                      </Badge>
                     </td>
                     <td className="p-3 text-muted-foreground">
                       {lr.approver ? `${lr.approver.firstName} ${lr.approver.lastName}` : "—"}
