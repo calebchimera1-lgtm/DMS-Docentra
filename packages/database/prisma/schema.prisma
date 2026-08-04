@@ -1,0 +1,2586 @@
+// Omniflow database schema — Milestone 2 (core platform layer).
+//
+// Scope: the tenancy, identity, RBAC, and cross-cutting tables every
+// business module (CRM, Sales, Inventory, ...) builds on top of, added
+// one module at a time from Milestone 7 onward. Each of those modules
+// gets its own models in this file plus a migration when it lands —
+// none are pre-declared here to avoid guessing at their shape ahead of
+// time.
+//
+// Conventions:
+//  - Primary keys are UUIDs, generated application-side by Prisma.
+//  - Every tenant-scoped table carries companyId and cascades on
+//    Company delete; "actor" references (who did this) are nullable
+//    and SET NULL on delete so history survives account deletion.
+//  - Table/column names are snake_case in Postgres via @@map/@map;
+//    Prisma-side fields stay camelCase.
+//  - Polymorphic cross-cutting tables (attachments, comments, audit
+//    logs) reference their target via (entityType, entityId) rather
+//    than a foreign key, since the target can be any module's table.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum CompanyStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum BranchStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGIN_FAILED
+  LOGOUT
+  PASSWORD_RESET
+  PERMISSION_CHANGE
+  EXPORT
+  OTHER
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+  MENTION
+  APPROVAL_REQUEST
+  SYSTEM
+}
+
+enum StorageProvider {
+  LOCAL
+  S3
+}
+
+enum CrmLeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  LOST
+}
+
+enum CrmDealStage {
+  PROSPECTING
+  QUALIFICATION
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum SalesOrderStatus {
+  DRAFT
+  CONFIRMED
+  FULFILLED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum StockMovementType {
+  RECEIPT
+  SALE
+  ADJUSTMENT
+  TRANSFER_IN
+  TRANSFER_OUT
+  RETURN
+  PRODUCTION_CONSUME
+  PRODUCTION_YIELD
+}
+
+enum LedgerAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum JournalEntryStatus {
+  DRAFT
+  POSTED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  OTHER
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERN
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  ON_LEAVE
+  TERMINATED
+}
+
+enum LeaveType {
+  VACATION
+  SICK
+  UNPAID
+  OTHER
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy
+// ---------------------------------------------------------------------------
+
+/// A tenant on the platform. Every other table (directly or transitively)
+/// is scoped to a Company.
+model Company {
+  id        String        @id @default(uuid())
+  name      String
+  slug      String        @unique
+  legalName String?
+  taxId     String?
+  currency  String        @default("USD")
+  timezone  String        @default("UTC")
+  logoUrl   String?
+  status    CompanyStatus @default(TRIAL)
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+  deletedAt DateTime?     @map("deleted_at")
+
+  branches            Branch[]
+  users               User[]
+  roles               Role[]
+  sessions            Session[]
+  auditLogs           AuditLog[]
+  notifications       Notification[]
+  attachments         Attachment[]
+  comments            Comment[]
+  settings            Setting[]
+  plugins             CompanyPlugin[]
+  crmAccounts         CrmAccount[]
+  crmContacts         CrmContact[]
+  crmLeads            CrmLead[]
+  crmDeals            CrmDeal[]
+  products            Product[]
+  quotes              Quote[]
+  salesOrders         SalesOrder[]
+  invoices            Invoice[]
+  warehouses          Warehouse[]
+  stockItems          StockItem[]
+  stockMovements      StockMovement[]
+  ledgerAccounts      LedgerAccount[]
+  journalEntries      JournalEntry[]
+  payments            Payment[]
+  departments         Department[]
+  employees           Employee[]
+  leaveRequests       LeaveRequest[]
+  projects            Project[]
+  projectTasks        ProjectTask[]
+  timeEntries         TimeEntry[]
+  tickets             Ticket[]
+  suppliers           Supplier[]
+  purchaseOrders      PurchaseOrder[]
+  goodsReceipts       GoodsReceipt[]
+  salaryComponents    SalaryComponent[]
+  payRuns             PayRun[]
+  payslips            Payslip[]
+  expenseCategories   ExpenseCategory[]
+  expenseClaims       ExpenseClaim[]
+  assetCategories     AssetCategory[]
+  assets              Asset[]
+  depreciationRuns    DepreciationRun[]
+  depreciationLines   DepreciationLine[]
+  jobPostings         JobPosting[]
+  candidates          Candidate[]
+  applications        Application[]
+  interviews          Interview[]
+  contracts           Contract[]
+  billsOfMaterial     BillOfMaterial[]
+  workOrders          WorkOrder[]
+  posRegisterSessions PosRegisterSession[]
+  posSales            PosSale[]
+  attendanceRecords   AttendanceRecord[]
+  vehicles            Vehicle[]
+  trips               Trip[]
+  maintenanceRecords  MaintenanceRecord[]
+  shipments           Shipment[]
+  deliveryEvents      DeliveryEvent[]
+
+  documentFolders  DocumentFolder[]
+  documents        Document[]
+  documentVersions DocumentVersion[]
+
+  subscriptionPlans    SubscriptionPlan[]
+  subscriptions        Subscription[]
+  subscriptionInvoices SubscriptionInvoice[]
+
+  @@index([status])
+  @@map("companies")
+}
+
+/// A physical or logical location within a Company (multi-branch support).
+model Branch {
+  id             String       @id @default(uuid())
+  companyId      String       @map("company_id")
+  name           String
+  code           String
+  isHeadquarters Boolean      @default(false) @map("is_headquarters")
+  status         BranchStatus @default(ACTIVE)
+  addressLine1   String?      @map("address_line1")
+  addressLine2   String?      @map("address_line2")
+  city           String?
+  state          String?
+  country        String?
+  postalCode     String?      @map("postal_code")
+  phone          String?
+  email          String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  deletedAt      DateTime?    @map("deleted_at")
+
+  company   Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  users     UserBranch[]
+  userRoles UserRole[]
+
+  @@unique([companyId, code])
+  @@index([companyId, status])
+  @@map("branches")
+}
+
+// ---------------------------------------------------------------------------
+// Identity & auth
+// ---------------------------------------------------------------------------
+
+/// A platform user. Belongs to exactly one Company; access to specific
+/// branches is granted via UserBranch, and permissions via UserRole.
+model User {
+  id                  String     @id @default(uuid())
+  companyId           String     @map("company_id")
+  email               String     @unique
+  passwordHash        String     @map("password_hash")
+  firstName           String     @map("first_name")
+  lastName            String     @map("last_name")
+  phone               String?
+  avatarUrl           String?    @map("avatar_url")
+  status              UserStatus @default(PENDING_VERIFICATION)
+  emailVerifiedAt     DateTime?  @map("email_verified_at")
+  mfaEnabled          Boolean    @default(false) @map("mfa_enabled")
+  mfaSecret           String?    @map("mfa_secret")
+  failedLoginAttempts Int        @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime?  @map("locked_until")
+  passwordChangedAt   DateTime?  @map("password_changed_at")
+  lastLoginAt         DateTime?  @map("last_login_at")
+  lastLoginIp         String?    @map("last_login_ip")
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+  deletedAt           DateTime?  @map("deleted_at")
+
+  company                 Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branches                UserBranch[]
+  roles                   UserRole[]
+  sessions                Session[]
+  mfaBackupCodes          MfaBackupCode[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  notifications           Notification[]
+  ownedCrmAccounts        CrmAccount[]
+  ownedCrmContacts        CrmContact[]
+  ownedCrmLeads           CrmLead[]
+  ownedCrmDeals           CrmDeal[]
+  authoredComments        Comment[]
+  ownedQuotes             Quote[]
+  ownedSalesOrders        SalesOrder[]
+  ownedInvoices           Invoice[]
+  recordedStockMovements  StockMovement[]
+  createdJournalEntries   JournalEntry[]
+  recordedPayments        Payment[]
+  employeeProfile         Employee?
+  ownedProjects           Project[]                @relation("ProjectOwner")
+  assignedTasks           ProjectTask[]            @relation("TaskAssignee")
+  timeEntries             TimeEntry[]              @relation("TimeEntryUser")
+  assignedTickets         Ticket[]                 @relation("TicketAssignee")
+  createdPurchaseOrders   PurchaseOrder[]          @relation("PurchaseOrderCreatedBy")
+  receivedGoodsReceipts   GoodsReceipt[]           @relation("GoodsReceiptReceivedBy")
+  createdPayRuns          PayRun[]                 @relation("PayRunCreatedBy")
+  createdDepreciationRuns DepreciationRun[]        @relation("DepreciationRunCreatedBy")
+  ownedContracts          Contract[]
+  createdWorkOrders       WorkOrder[]              @relation("WorkOrderCreatedBy")
+  openedPosSessions       PosRegisterSession[]     @relation("PosSessionOpenedBy")
+  closedPosSessions       PosRegisterSession[]     @relation("PosSessionClosedBy")
+  posSales                PosSale[]                @relation("PosSaleSoldBy")
+
+  deliveryEvents DeliveryEvent[]
+
+  documentsCheckedOut Document[]        @relation("DocumentCheckedOutBy")
+  documentsOwned      Document[]        @relation("DocumentOwner")
+  documentVersions    DocumentVersion[]
+
+  @@index([companyId, status])
+  @@map("users")
+}
+
+/// Which branches a user can operate in (multi-branch access grant).
+model UserBranch {
+  userId    String   @map("user_id")
+  branchId  String   @map("branch_id")
+  isPrimary Boolean  @default(false) @map("is_primary")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@id([userId, branchId])
+  @@index([branchId])
+  @@map("user_branches")
+}
+
+/// A named collection of permissions, either a system-provided template
+/// (companyId null) or a company-specific custom role.
+model Role {
+  id          String   @id @default(uuid())
+  companyId   String?  @map("company_id")
+  name        String
+  description String?
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company     Company?         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@unique([companyId, name])
+  @@map("roles")
+}
+
+/// The global catalog of assignable permissions (seeded, not user-created).
+model Permission {
+  id          String  @id @default(uuid())
+  key         String  @unique
+  module      String
+  action      String
+  description String?
+
+  roles RolePermission[]
+
+  @@index([module])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+/// A role granted to a user, optionally scoped to a single branch
+/// (null branchId = applies company-wide). branchId is nullable, so this
+/// uses a surrogate key rather than a composite one (Postgres unique
+/// constraints treat NULLs as distinct — the service layer is
+/// responsible for rejecting duplicate company-wide grants).
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  roleId    String   @map("role_id")
+  branchId  String?  @map("branch_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId, branchId])
+  @@index([roleId])
+  @@index([branchId])
+  @@map("user_roles")
+}
+
+/// A refresh-token-backed login session / device (session management).
+model Session {
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  companyId        String    @map("company_id")
+  refreshTokenHash String    @unique @map("refresh_token_hash")
+  deviceLabel      String?   @map("device_label")
+  userAgent        String?   @map("user_agent")
+  ipAddress        String?   @map("ip_address")
+  revokedAt        DateTime? @map("revoked_at")
+  expiresAt        DateTime  @map("expires_at")
+  lastUsedAt       DateTime  @default(now()) @map("last_used_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+/// One-time-use TOTP MFA recovery code.
+model MfaBackupCode {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  codeHash  String    @map("code_hash")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("mfa_backup_codes")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Cross-cutting: audit, notifications, files, comments, settings, plugins
+// ---------------------------------------------------------------------------
+
+/// Append-only audit trail. entityType/entityId point at the affected
+/// record in any module's table (e.g. entityType="Invoice").
+model AuditLog {
+  id         String      @id @default(uuid())
+  companyId  String      @map("company_id")
+  actorId    String?     @map("actor_id")
+  action     AuditAction
+  entityType String      @map("entity_type")
+  entityId   String?     @map("entity_id")
+  changes    Json?
+  ipAddress  String?     @map("ip_address")
+  userAgent  String?     @map("user_agent")
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, entityType, entityId])
+  @@index([companyId, createdAt])
+  @@index([actorId])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  companyId String           @map("company_id")
+  userId    String           @map("user_id")
+  type      NotificationType @default(INFO)
+  title     String
+  body      String?
+  data      Json?
+  readAt    DateTime?        @map("read_at")
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([companyId, createdAt])
+  @@map("notifications")
+}
+
+/// A file attached to any module's record, addressed polymorphically via
+/// (entityType, entityId). Storage location is an S3-compatible key
+/// (works for both MinIO locally and AWS S3 in production).
+model Attachment {
+  id              String          @id @default(uuid())
+  companyId       String          @map("company_id")
+  uploadedById    String?         @map("uploaded_by_id")
+  entityType      String          @map("entity_type")
+  entityId        String          @map("entity_id")
+  fileName        String          @map("file_name")
+  originalName    String          @map("original_name")
+  mimeType        String          @map("mime_type")
+  sizeBytes       BigInt          @map("size_bytes")
+  storageProvider StorageProvider @default(S3) @map("storage_provider")
+  storageKey      String          @map("storage_key")
+  checksum        String?
+  createdAt       DateTime        @default(now()) @map("created_at")
+  deletedAt       DateTime?       @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, entityType, entityId])
+  @@map("attachments")
+}
+
+/// A comment on any module's record, addressed polymorphically via
+/// (entityType, entityId).
+model Comment {
+  id         String    @id @default(uuid())
+  companyId  String    @map("company_id")
+  authorId   String?   @map("author_id")
+  entityType String    @map("entity_type")
+  entityId   String    @map("entity_id")
+  body       String
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  author  User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, entityType, entityId])
+  @@map("comments")
+}
+
+/// Company-scoped key/value settings (per-module or platform-wide).
+model Setting {
+  id        String   @id @default(uuid())
+  companyId String   @map("company_id")
+  key       String
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, key])
+  @@map("settings")
+}
+
+/// MODULE: one of the 20 core business modules (CRM, Sales, ...) — these
+/// drive the sidebar. INTEGRATION: a lightweight third-party hook (Slack,
+/// Zapier, a webhook) reacting to domain events. Same catalog +
+/// per-company install/enable shape either way (a "plugin" is just an
+/// installable unit); this is what actually distinguishes them.
+enum PluginKind {
+  MODULE
+  INTEGRATION
+}
+
+/// The catalog of installable plugins (plugin system) — this is also the
+/// app registry: every MODULE-kind row here is a business module the
+/// sidebar can show, so navigation is generated from installed apps +
+/// permissions rather than hard-coded.
+model Plugin {
+  id     String     @id @default(uuid())
+  key    String     @unique
+  kind   PluginKind @default(INTEGRATION)
+  name   String
+  description String?
+  version     String
+  author      String?
+  isActive    Boolean  @default(true) @map("is_active")
+  /// Lucide icon component name (MODULE only) — the frontend looks this
+  /// string up in a fixed icon map, since components can't be stored in
+  /// the database.
+  icon             String?
+  /// Base route this module's pages live under (MODULE only), e.g. "/crm".
+  route            String?
+  /// The PERMISSIONS module prefix (e.g. "crm") a user needs `:read` on to
+  /// see this in navigation (MODULE only). Null means always visible to
+  /// anyone in the company (e.g. Dashboard).
+  permissionModule String?  @map("permission_module")
+  /// Sidebar ordering (MODULE only).
+  sortOrder        Int      @default(0) @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  companies CompanyPlugin[]
+
+  @@map("plugins")
+}
+
+/// Per-company plugin install/enable state and configuration.
+model CompanyPlugin {
+  companyId   String   @map("company_id")
+  pluginId    String   @map("plugin_id")
+  isEnabled   Boolean  @default(true) @map("is_enabled")
+  config      Json?
+  installedAt DateTime @default(now()) @map("installed_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plugin  Plugin  @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, pluginId])
+  @@index([pluginId])
+  @@map("company_plugins")
+}
+
+// ---------------------------------------------------------------------------
+// CRM (Milestone 7 — first business module)
+// ---------------------------------------------------------------------------
+
+/// A customer or prospect organization.
+model CrmAccount {
+  id        String    @id @default(uuid())
+  companyId String    @map("company_id")
+  name      String
+  industry  String?
+  website   String?
+  phone     String?
+  ownerId   String?   @map("owner_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  owner       User?        @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  contacts    CrmContact[]
+  deals       CrmDeal[]
+  quotes      Quote[]
+  salesOrders SalesOrder[]
+  invoices    Invoice[]
+  projects    Project[]
+  tickets     Ticket[]
+  contracts   Contract[]
+  posSales    PosSale[]
+
+  shipments Shipment[]
+
+  subscriptions Subscription[]
+
+  @@index([companyId, deletedAt])
+  @@map("crm_accounts")
+}
+
+/// A person, optionally linked to an account.
+model CrmContact {
+  id        String    @id @default(uuid())
+  companyId String    @map("company_id")
+  accountId String?   @map("account_id")
+  firstName String    @map("first_name")
+  lastName  String    @map("last_name")
+  email     String?
+  phone     String?
+  title     String?
+  ownerId   String?   @map("owner_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account     CrmAccount?  @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  owner       User?        @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  deals       CrmDeal[]
+  quotes      Quote[]
+  salesOrders SalesOrder[]
+  invoices    Invoice[]
+  tickets     Ticket[]
+
+  @@index([companyId, deletedAt])
+  @@index([accountId])
+  @@map("crm_contacts")
+}
+
+/// A prospective customer not yet qualified into an account/contact.
+model CrmLead {
+  id          String        @id @default(uuid())
+  companyId   String        @map("company_id")
+  firstName   String        @map("first_name")
+  lastName    String        @map("last_name")
+  email       String?
+  phone       String?
+  companyName String?       @map("company_name")
+  source      String?
+  status      CrmLeadStatus @default(NEW)
+  ownerId     String?       @map("owner_id")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  deletedAt   DateTime?     @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, deletedAt, status])
+  @@map("crm_leads")
+}
+
+/// A sales opportunity moving through a pipeline.
+model CrmDeal {
+  id                String       @id @default(uuid())
+  companyId         String       @map("company_id")
+  accountId         String?      @map("account_id")
+  contactId         String?      @map("contact_id")
+  title             String
+  valueCents        Int          @default(0) @map("value_cents")
+  currency          String       @default("USD")
+  stage             CrmDealStage @default(PROSPECTING)
+  expectedCloseDate DateTime?    @map("expected_close_date")
+  ownerId           String?      @map("owner_id")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+  deletedAt         DateTime?    @map("deleted_at")
+
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  contact CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  owner   User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, deletedAt, stage])
+  @@index([accountId])
+  @@index([contactId])
+  @@map("crm_deals")
+}
+
+// ---------------------------------------------------------------------------
+// Sales (Milestone 7b — second business module)
+// ---------------------------------------------------------------------------
+
+/// A sellable item or service in the company's catalog.
+model Product {
+  id             String    @id @default(uuid())
+  companyId      String    @map("company_id")
+  sku            String
+  name           String
+  description    String?
+  unitPriceCents Int       @default(0) @map("unit_price_cents")
+  /// Unit cost (COGS), separate from unitPriceCents (the selling price).
+  /// Nullable — an existing product predating this field, or one a
+  /// company hasn't costed yet, has no cost basis to report margin from.
+  costPriceCents Int?      @map("cost_price_cents")
+  currency       String    @default("USD")
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  company             Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  stockItems          StockItem[]
+  stockMovements      StockMovement[]
+  billsOfMaterial     BillOfMaterial[] @relation("BomOutputProduct")
+  bomLinesAsComponent BomLine[]        @relation("BomComponentProduct")
+  workOrdersAsOutput  WorkOrder[]      @relation("WorkOrderOutputProduct")
+
+  @@unique([companyId, sku])
+  @@index([companyId, deletedAt])
+  @@map("products")
+}
+
+/// A price quote sent to a prospective or existing customer. Line items are
+/// stored as a JSON snapshot (not a live join to Product) so a quote's
+/// price/description never changes after the fact even if the underlying
+/// product is later repriced or renamed.
+model Quote {
+  id            String      @id @default(uuid())
+  companyId     String      @map("company_id")
+  accountId     String      @map("account_id")
+  contactId     String?     @map("contact_id")
+  quoteNumber   String      @map("quote_number")
+  status        QuoteStatus @default(DRAFT)
+  items         Json
+  subtotalCents Int         @default(0) @map("subtotal_cents")
+  discountCents Int         @default(0) @map("discount_cents")
+  taxCents      Int         @default(0) @map("tax_cents")
+  totalCents    Int         @default(0) @map("total_cents")
+  currency      String      @default("USD")
+  validUntil    DateTime?   @map("valid_until")
+  ownerId       String?     @map("owner_id")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  deletedAt     DateTime?   @map("deleted_at")
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account    CrmAccount  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  contact    CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  owner      User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  salesOrder SalesOrder?
+
+  @@unique([companyId, quoteNumber])
+  @@index([companyId, deletedAt, status])
+  @@map("quotes")
+}
+
+/// A confirmed order, either converted from an accepted Quote or created
+/// directly.
+model SalesOrder {
+  id          String           @id @default(uuid())
+  companyId   String           @map("company_id")
+  accountId   String           @map("account_id")
+  contactId   String?          @map("contact_id")
+  quoteId     String?          @unique @map("quote_id")
+  orderNumber String           @map("order_number")
+  status      SalesOrderStatus @default(DRAFT)
+  items       Json
+  totalCents  Int              @default(0) @map("total_cents")
+  currency    String           @default("USD")
+  ownerId     String?          @map("owner_id")
+  /// Warehouse stock was deducted from on fulfillment. Set either up front
+  /// or at fulfill-time — required before the order can move to FULFILLED.
+  warehouseId String?          @map("warehouse_id")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  deletedAt   DateTime?        @map("deleted_at")
+
+  company   Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account   CrmAccount  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  contact   CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  quote     Quote?      @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  owner     User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  warehouse Warehouse?  @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  invoice   Invoice?
+
+  shipments Shipment[]
+
+  @@unique([companyId, orderNumber])
+  @@index([companyId, deletedAt, status])
+  @@map("sales_orders")
+}
+
+/// A bill sent to the customer, either converted from a SalesOrder or
+/// created directly. Payment collection itself (gateways, ledger entries)
+/// is out of scope here — `markPaid` just records that money arrived.
+model Invoice {
+  id            String        @id @default(uuid())
+  companyId     String        @map("company_id")
+  accountId     String        @map("account_id")
+  contactId     String?       @map("contact_id")
+  salesOrderId  String?       @unique @map("sales_order_id")
+  invoiceNumber String        @map("invoice_number")
+  status        InvoiceStatus @default(DRAFT)
+  items         Json
+  totalCents    Int           @default(0) @map("total_cents")
+  currency      String        @default("USD")
+  dueDate       DateTime?     @map("due_date")
+  paidAt        DateTime?     @map("paid_at")
+  ownerId       String?       @map("owner_id")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  deletedAt     DateTime?     @map("deleted_at")
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account    CrmAccount  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  contact    CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  salesOrder SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  owner      User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  payments   Payment[]
+
+  subscriptionInvoice SubscriptionInvoice?
+
+  @@unique([companyId, invoiceNumber])
+  @@index([companyId, deletedAt, status])
+  @@map("invoices")
+}
+
+// ---------------------------------------------------------------------------
+// Inventory (Milestone 7c — third business module)
+// ---------------------------------------------------------------------------
+
+/// A physical or logical stock location.
+model Warehouse {
+  id        String    @id @default(uuid())
+  companyId String    @map("company_id")
+  name      String
+  code      String
+  address   String?
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  stockItems          StockItem[]
+  stockMovements      StockMovement[]
+  purchaseOrders      PurchaseOrder[]
+  goodsReceipts       GoodsReceipt[]
+  workOrders          WorkOrder[]
+  posRegisterSessions PosRegisterSession[]
+  posSales            PosSale[]
+  salesOrders         SalesOrder[]
+
+  shipments Shipment[]
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt])
+  @@map("warehouses")
+}
+
+/// Current on-hand quantity of a Product at a Warehouse — a cache
+/// maintained transactionally alongside each StockMovement, not a
+/// standalone source of truth (the movement ledger is that).
+model StockItem {
+  id              String   @id @default(uuid())
+  companyId       String   @map("company_id")
+  productId       String   @map("product_id")
+  warehouseId     String   @map("warehouse_id")
+  quantityOnHand  Int      @default(0) @map("quantity_on_hand")
+  reorderPoint    Int      @default(0) @map("reorder_point")
+  reorderQuantity Int      @default(0) @map("reorder_quantity")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, warehouseId])
+  @@index([companyId])
+  @@map("stock_items")
+}
+
+/// An append-only ledger entry recording a change in stock. `quantity` is
+/// a signed delta (positive for RECEIPT/RETURN/TRANSFER_IN, negative for
+/// SALE/TRANSFER_OUT/a reducing ADJUSTMENT) applied to the corresponding
+/// StockItem.quantityOnHand inside the same transaction that creates this
+/// row, so the cache and the ledger can never drift apart.
+model StockMovement {
+  id          String            @id @default(uuid())
+  companyId   String            @map("company_id")
+  productId   String            @map("product_id")
+  warehouseId String            @map("warehouse_id")
+  type        StockMovementType
+  quantity    Int
+  reference   String?
+  note        String?
+  createdById String?           @map("created_by_id")
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([productId, warehouseId])
+  @@map("stock_movements")
+}
+
+// ---------------------------------------------------------------------------
+// Accounting (Milestone 7d — fourth business module)
+// ---------------------------------------------------------------------------
+
+/// A line in the chart of accounts. Named `LedgerAccount` (not `Account`)
+/// to stay unambiguous next to CRM's `CrmAccount` (a customer/prospect).
+model LedgerAccount {
+  id        String            @id @default(uuid())
+  companyId String            @map("company_id")
+  code      String
+  name      String
+  type      LedgerAccountType
+  isActive  Boolean           @default(true) @map("is_active")
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+  deletedAt DateTime?         @map("deleted_at")
+
+  company                  Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  journalLines             JournalLine[]
+  debitPayments            Payment[]         @relation("PaymentDebitAccount")
+  creditPayments           Payment[]         @relation("PaymentCreditAccount")
+  expenseCategories        ExpenseCategory[]
+  assetCategoriesAsAsset   AssetCategory[]   @relation("AssetCategoryAssetAccount")
+  assetCategoriesAsExpense AssetCategory[]   @relation("AssetCategoryDepreciationExpenseAccount")
+  assetCategoriesAsAccum   AssetCategory[]   @relation("AssetCategoryAccumulatedDepreciationAccount")
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt, type])
+  @@map("ledger_accounts")
+}
+
+/// A double-entry journal entry. Once POSTED, an entry (and its lines) is
+/// immutable and cannot be deleted — enforced in JournalEntriesService, not
+/// at the schema level, the same way Sales enforces its status machine.
+model JournalEntry {
+  id          String             @id @default(uuid())
+  companyId   String             @map("company_id")
+  entryNumber String             @map("entry_number")
+  entryDate   DateTime           @map("entry_date")
+  memo        String?
+  status      JournalEntryStatus @default(DRAFT)
+  createdById String?            @map("created_by_id")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  deletedAt   DateTime?          @map("deleted_at")
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy       User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  lines           JournalLine[]
+  payment         Payment?
+  expenseClaim    ExpenseClaim?
+  depreciationRun DepreciationRun?
+  disposedAsset   Asset?
+
+  @@unique([companyId, entryNumber])
+  @@index([companyId, deletedAt, status])
+  @@map("journal_entries")
+}
+
+/// One debit or credit line of a JournalEntry. Exactly one of
+/// debitCents/creditCents is non-zero — validated in the service layer,
+/// where the entry's overall debit == credit balance is also enforced.
+model JournalLine {
+  id              String  @id @default(uuid())
+  journalEntryId  String  @map("journal_entry_id")
+  ledgerAccountId String  @map("ledger_account_id")
+  debitCents      Int     @default(0) @map("debit_cents")
+  creditCents     Int     @default(0) @map("credit_cents")
+  description     String?
+  lineOrder       Int     @default(0) @map("line_order")
+
+  journalEntry  JournalEntry  @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  ledgerAccount LedgerAccount @relation(fields: [ledgerAccountId], references: [id], onDelete: Restrict)
+
+  @@index([journalEntryId])
+  @@index([ledgerAccountId])
+  @@map("journal_lines")
+}
+
+/// A record of money moving between two ledger accounts (e.g. Bank <-
+/// Accounts Receivable), optionally settling a Sales Invoice. Creating a
+/// Payment atomically posts a balanced JournalEntry — payments never exist
+/// without a corresponding, already-posted double-entry record.
+model Payment {
+  id              String        @id @default(uuid())
+  companyId       String        @map("company_id")
+  invoiceId       String?       @map("invoice_id")
+  amountCents     Int           @map("amount_cents")
+  currency        String        @default("USD")
+  method          PaymentMethod @default(BANK_TRANSFER)
+  paymentDate     DateTime      @map("payment_date")
+  debitAccountId  String        @map("debit_account_id")
+  creditAccountId String        @map("credit_account_id")
+  journalEntryId  String        @unique @map("journal_entry_id")
+  reference       String?
+  note            String?
+  createdById     String?       @map("created_by_id")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice       Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  debitAccount  LedgerAccount @relation("PaymentDebitAccount", fields: [debitAccountId], references: [id], onDelete: Restrict)
+  creditAccount LedgerAccount @relation("PaymentCreditAccount", fields: [creditAccountId], references: [id], onDelete: Restrict)
+  journalEntry  JournalEntry  @relation(fields: [journalEntryId], references: [id], onDelete: Restrict)
+  createdBy     User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, paymentDate])
+  @@index([invoiceId])
+  @@map("payments")
+}
+
+// ---------------------------------------------------------------------------
+// HR (Milestone 7e — fifth business module)
+// ---------------------------------------------------------------------------
+
+/// An organizational department/team.
+model Department {
+  id        String    @id @default(uuid())
+  companyId String    @map("company_id")
+  name      String
+  code      String
+  managerId String?   @map("manager_id")
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  manager     Employee?    @relation("DepartmentManager", fields: [managerId], references: [id], onDelete: SetNull)
+  employees   Employee[]   @relation("EmployeeDepartment")
+  jobPostings JobPosting[]
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt])
+  @@map("departments")
+}
+
+/// An HR record. Optionally linked to a system User (an employee doesn't
+/// need a login to exist in HR — e.g. before onboarding, or a contractor
+/// who never gets system access), so name/email/phone are stored here
+/// too rather than assumed to come from the linked account.
+model Employee {
+  id              String         @id @default(uuid())
+  companyId       String         @map("company_id")
+  userId          String?        @unique @map("user_id")
+  departmentId    String?        @map("department_id")
+  managerId       String?        @map("manager_id")
+  employeeNumber  String         @map("employee_number")
+  firstName       String         @map("first_name")
+  lastName        String         @map("last_name")
+  email           String?
+  phone           String?
+  jobTitle        String?        @map("job_title")
+  employmentType  EmploymentType @default(FULL_TIME) @map("employment_type")
+  status          EmployeeStatus @default(ACTIVE)
+  hireDate        DateTime       @map("hire_date")
+  terminationDate DateTime?      @map("termination_date")
+  salaryCents     Int?           @map("salary_cents")
+  currency        String         @default("USD")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  deletedAt       DateTime?      @map("deleted_at")
+
+  company                 Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user                    User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  department              Department?        @relation("EmployeeDepartment", fields: [departmentId], references: [id], onDelete: SetNull)
+  manager                 Employee?          @relation("EmployeeManager", fields: [managerId], references: [id], onDelete: SetNull)
+  directReports           Employee[]         @relation("EmployeeManager")
+  managedDepartments      Department[]       @relation("DepartmentManager")
+  leaveRequests           LeaveRequest[]     @relation("LeaveRequester")
+  approvedLeaveRequests   LeaveRequest[]     @relation("LeaveApprover")
+  payslips                Payslip[]
+  expenseClaims           ExpenseClaim[]     @relation("ExpenseClaimant")
+  approvedExpenseClaims   ExpenseClaim[]     @relation("ExpenseApprover")
+  interviewsAsInterviewer Interview[]        @relation("InterviewInterviewer")
+  hiredFromApplication    Application?
+  attendanceRecords       AttendanceRecord[]
+  assignedVehicles        Vehicle[]          @relation("VehicleAssignedDriver")
+  tripsAsDriver           Trip[]             @relation("TripDriver")
+
+  shipmentsAsDriver Shipment[] @relation("ShipmentDriver")
+
+  @@unique([companyId, employeeNumber])
+  @@index([companyId, deletedAt, status])
+  @@index([departmentId])
+  @@map("employees")
+}
+
+/// A time-off request against an Employee's record.
+model LeaveRequest {
+  id         String             @id @default(uuid())
+  companyId  String             @map("company_id")
+  employeeId String             @map("employee_id")
+  type       LeaveType
+  startDate  DateTime           @map("start_date")
+  endDate    DateTime           @map("end_date")
+  status     LeaveRequestStatus @default(PENDING)
+  reason     String?
+  approverId String?            @map("approver_id")
+  reviewedAt DateTime?          @map("reviewed_at")
+  createdAt  DateTime           @default(now()) @map("created_at")
+  updatedAt  DateTime           @updatedAt @map("updated_at")
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee Employee  @relation("LeaveRequester", fields: [employeeId], references: [id], onDelete: Cascade)
+  approver Employee? @relation("LeaveApprover", fields: [approverId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status])
+  @@index([employeeId])
+  @@map("leave_requests")
+}
+
+// ---------------------------------------------------------------------------
+// Projects (Milestone 7f — sixth business module)
+// ---------------------------------------------------------------------------
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+/// A unit of billable or internal work, optionally tied to a CRM account
+/// (client work) and owned by a User (the project manager).
+model Project {
+  id          String        @id @default(uuid())
+  companyId   String        @map("company_id")
+  accountId   String?       @map("account_id")
+  ownerId     String?       @map("owner_id")
+  name        String
+  code        String
+  description String?
+  status      ProjectStatus @default(PLANNING)
+  startDate   DateTime?     @map("start_date")
+  endDate     DateTime?     @map("end_date")
+  budgetCents Int?          @map("budget_cents")
+  currency    String        @default("USD")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  deletedAt   DateTime?     @map("deleted_at")
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account CrmAccount?   @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  owner   User?         @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  tasks   ProjectTask[]
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt, status])
+  @@map("projects")
+}
+
+/// A task within a project, optionally assigned to a User.
+model ProjectTask {
+  id               String       @id @default(uuid())
+  companyId        String       @map("company_id")
+  projectId        String       @map("project_id")
+  assigneeId       String?      @map("assignee_id")
+  title            String
+  description      String?
+  status           TaskStatus   @default(TODO)
+  priority         TaskPriority @default(MEDIUM)
+  dueDate          DateTime?    @map("due_date")
+  estimatedMinutes Int?         @map("estimated_minutes")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+  deletedAt        DateTime?    @map("deleted_at")
+
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee    User?       @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  timeEntries TimeEntry[]
+
+  @@index([companyId, deletedAt, status])
+  @@index([projectId])
+  @@map("project_tasks")
+}
+
+/// A logged block of time (in minutes) against a task, by the user who did
+/// the work. Append-only in spirit — corrections happen through delete +
+/// re-log, same as Inventory's movement ledger.
+model TimeEntry {
+  id        String   @id @default(uuid())
+  companyId String   @map("company_id")
+  taskId    String   @map("task_id")
+  userId    String   @map("user_id")
+  minutes   Int
+  entryDate DateTime @map("entry_date")
+  note      String?
+  billable  Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  task    ProjectTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user    User        @relation("TimeEntryUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, entryDate])
+  @@index([taskId])
+  @@map("time_entries")
+}
+
+// ---------------------------------------------------------------------------
+// Support (Milestone 7g — seventh business module)
+// ---------------------------------------------------------------------------
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_ON_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+/// A helpdesk ticket. Replies and file attachments are handled by the
+/// existing generic Comment/Attachment models (entityType "Ticket"),
+/// not duplicated here.
+model Ticket {
+  id             String         @id @default(uuid())
+  companyId      String         @map("company_id")
+  accountId      String?        @map("account_id")
+  contactId      String?        @map("contact_id")
+  assigneeId     String?        @map("assignee_id")
+  ticketNumber   String         @map("ticket_number")
+  subject        String
+  description    String?
+  status         TicketStatus   @default(OPEN)
+  priority       TicketPriority @default(MEDIUM)
+  requesterEmail String?        @map("requester_email")
+  dueDate        DateTime?      @map("due_date")
+  resolvedAt     DateTime?      @map("resolved_at")
+  closedAt       DateTime?      @map("closed_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  deletedAt      DateTime?      @map("deleted_at")
+
+  company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account  CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  contact  CrmContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  assignee User?       @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, ticketNumber])
+  @@index([companyId, deletedAt, status])
+  @@index([assigneeId])
+  @@map("tickets")
+}
+
+// ---------------------------------------------------------------------------
+// Purchase (Milestone 7h — eighth business module)
+// ---------------------------------------------------------------------------
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SENT
+  CONFIRMED
+  RECEIVED
+  CANCELLED
+}
+
+/// A vendor. Deliberately its own model rather than reusing CrmAccount —
+/// CrmAccount is the CRM/sales-side "customer or prospect" concept; keeping
+/// them separate avoids the same ambiguity already guarded against for
+/// LedgerAccount vs CrmAccount in Accounting.
+model Supplier {
+  id        String    @id @default(uuid())
+  companyId String    @map("company_id")
+  name      String
+  code      String
+  email     String?
+  phone     String?
+  address   String?
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt])
+  @@map("suppliers")
+}
+
+/// An order to a Supplier. Line items are a JSON snapshot, same convention
+/// as Sales' Quote/SalesOrder/Invoice, reusing the same LineItemDto shape
+/// (unitPriceCents here means "unit cost agreed with the supplier").
+/// Receiving is a dedicated action (see GoodsReceipt) rather than a plain
+/// status update, since it has a real side effect: it moves stock.
+model PurchaseOrder {
+  id            String              @id @default(uuid())
+  companyId     String              @map("company_id")
+  supplierId    String              @map("supplier_id")
+  warehouseId   String?             @map("warehouse_id")
+  createdById   String?             @map("created_by_id")
+  orderNumber   String              @map("order_number")
+  status        PurchaseOrderStatus @default(DRAFT)
+  items         Json
+  subtotalCents Int                 @default(0) @map("subtotal_cents")
+  totalCents    Int                 @default(0) @map("total_cents")
+  currency      String              @default("USD")
+  expectedDate  DateTime?           @map("expected_date")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+  deletedAt     DateTime?           @map("deleted_at")
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  supplier     Supplier      @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  warehouse    Warehouse?    @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  createdBy    User?         @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  goodsReceipt GoodsReceipt?
+
+  @@unique([companyId, orderNumber])
+  @@index([companyId, deletedAt, status])
+  @@map("purchase_orders")
+}
+
+/// Records that a CONFIRMED PurchaseOrder's goods arrived. Always a full
+/// receipt of the order (one receipt per order, the same "one conversion
+/// each" simplicity Sales applies to Quote->Order->Invoice) — creating this
+/// transactionally posts an inbound StockMovement per line item and updates
+/// StockItem quantities, reusing Inventory's own movement-recording logic
+/// rather than re-implementing it.
+model GoodsReceipt {
+  id              String   @id @default(uuid())
+  companyId       String   @map("company_id")
+  purchaseOrderId String   @unique @map("purchase_order_id")
+  warehouseId     String   @map("warehouse_id")
+  receivedById    String?  @map("received_by_id")
+  receiptNumber   String   @map("receipt_number")
+  items           Json
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  warehouse     Warehouse     @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  receivedBy    User?         @relation("GoodsReceiptReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, receiptNumber])
+  @@map("goods_receipts")
+}
+
+// ---------------------------------------------------------------------------
+// Payroll (Milestone 7i — ninth business module)
+// ---------------------------------------------------------------------------
+
+enum SalaryComponentType {
+  EARNING
+  DEDUCTION
+}
+
+enum CalculationType {
+  FIXED
+  PERCENTAGE
+}
+
+enum PayRunStatus {
+  DRAFT
+  PROCESSED
+  PAID
+  CANCELLED
+}
+
+enum PayslipStatus {
+  PENDING
+  PAID
+}
+
+/// A reusable pay code (e.g. "Housing Allowance", "Income Tax") applied to
+/// every eligible employee when a PayRun is generated. `value` is cents for
+/// FIXED, or basis points (1/100 of a percent — 1000 = 10.00%) of the
+/// employee's basic salary for PERCENTAGE, the same integer-only discipline
+/// the schema already applies to money and stock quantities elsewhere.
+model SalaryComponent {
+  id              String              @id @default(uuid())
+  companyId       String              @map("company_id")
+  name            String
+  code            String
+  type            SalaryComponentType
+  calculationType CalculationType     @default(FIXED) @map("calculation_type")
+  value           Int
+  isActive        Boolean             @default(true) @map("is_active")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  deletedAt       DateTime?           @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt])
+  @@map("salary_components")
+}
+
+/// A payroll period. Generating it (see Payslip) is a dedicated action, not
+/// a plain status update — same reasoning as PurchaseOrder's `receive`: it
+/// has a real side effect, computing and creating every employee's payslip.
+model PayRun {
+  id          String       @id @default(uuid())
+  companyId   String       @map("company_id")
+  createdById String?      @map("created_by_id")
+  periodStart DateTime     @map("period_start")
+  periodEnd   DateTime     @map("period_end")
+  paymentDate DateTime?    @map("payment_date")
+  status      PayRunStatus @default(DRAFT)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  deletedAt   DateTime?    @map("deleted_at")
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation("PayRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  payslips  Payslip[]
+
+  @@index([companyId, deletedAt, status])
+  @@map("pay_runs")
+}
+
+/// One employee's computed pay for a PayRun — generated, not hand-entered.
+/// `items` is a JSON snapshot of the SalaryComponents applied at generation
+/// time, the same "never drift if the catalog changes later" convention
+/// Sales applies to Quote/SalesOrder/Invoice line items.
+model Payslip {
+  id               String        @id @default(uuid())
+  companyId        String        @map("company_id")
+  payRunId         String        @map("pay_run_id")
+  employeeId       String        @map("employee_id")
+  basicSalaryCents Int           @map("basic_salary_cents")
+  grossPayCents    Int           @map("gross_pay_cents")
+  deductionsCents  Int           @map("deductions_cents")
+  netPayCents      Int           @map("net_pay_cents")
+  currency         String        @default("USD")
+  items            Json
+  status           PayslipStatus @default(PENDING)
+  paidAt           DateTime?     @map("paid_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payRun   PayRun   @relation(fields: [payRunId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  @@unique([payRunId, employeeId])
+  @@index([companyId, employeeId])
+  @@map("payslips")
+}
+
+// ---------------------------------------------------------------------------
+// Expenses (Milestone 7j — tenth business module)
+// ---------------------------------------------------------------------------
+
+enum ExpenseClaimStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PAID
+  CANCELLED
+}
+
+/// A per-company category (Travel, Meals, Office Supplies, ...) that an
+/// expense line is classified under. Optionally mapped to the expense
+/// LedgerAccount it should debit when a claim using it is approved and
+/// posted to Accounting — left unset means claims can still be drafted
+/// and submitted, but approve() will reject posting until it's set.
+model ExpenseCategory {
+  id              String    @id @default(uuid())
+  companyId       String    @map("company_id")
+  name            String
+  code            String
+  ledgerAccountId String?   @map("ledger_account_id")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ledgerAccount LedgerAccount? @relation(fields: [ledgerAccountId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt])
+  @@map("expense_categories")
+}
+
+/// An employee's expense claim. `items` is a JSON snapshot of the
+/// categorized expense lines (same "never drift" convention as Sales'
+/// line items and Payroll's Payslip.items) — editable only while DRAFT.
+/// approve() is a dedicated action with a real side effect: it posts a
+/// balanced JournalEntry (debiting each line's category expense account,
+/// crediting the reimbursement-payable account passed by the caller),
+/// the same "receive"/"generate"/"markPaid" precedent set by Purchase and
+/// Payroll for anything beyond a plain status update.
+model ExpenseClaim {
+  id              String             @id @default(uuid())
+  companyId       String             @map("company_id")
+  employeeId      String             @map("employee_id")
+  claimNumber     String             @map("claim_number")
+  expenseDate     DateTime           @map("expense_date")
+  items           Json
+  totalCents      Int                @default(0) @map("total_cents")
+  currency        String             @default("USD")
+  status          ExpenseClaimStatus @default(DRAFT)
+  note            String?
+  submittedAt     DateTime?          @map("submitted_at")
+  approvedById    String?            @map("approved_by_id")
+  approvedAt      DateTime?          @map("approved_at")
+  rejectionReason String?            @map("rejection_reason")
+  journalEntryId  String?            @unique @map("journal_entry_id")
+  paidAt          DateTime?          @map("paid_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+  deletedAt       DateTime?          @map("deleted_at")
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee     Employee      @relation("ExpenseClaimant", fields: [employeeId], references: [id], onDelete: Restrict)
+  approvedBy   Employee?     @relation("ExpenseApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, claimNumber])
+  @@index([companyId, deletedAt, status])
+  @@index([employeeId])
+  @@map("expense_claims")
+}
+
+// ---------------------------------------------------------------------------
+// Assets (Milestone 7k — eleventh business module)
+// ---------------------------------------------------------------------------
+
+enum AssetStatus {
+  ACTIVE
+  DISPOSED
+}
+
+enum DepreciationRunStatus {
+  DRAFT
+  POSTED
+  CANCELLED
+}
+
+/// A per-company category (Computers, Vehicles, Office Furniture, ...)
+/// carrying the default useful life and the three ledger accounts its
+/// assets post against: the fixed-asset account (credited on disposal),
+/// the depreciation expense account (debited each depreciation run), and
+/// the accumulated-depreciation contra-asset account (credited each
+/// depreciation run, debited on disposal). Any of the three left unset
+/// still allows registering assets — it only blocks depreciate/dispose,
+/// the same "unmapped category" pattern Expenses applies.
+model AssetCategory {
+  id                               String    @id @default(uuid())
+  companyId                        String    @map("company_id")
+  name                             String
+  code                             String
+  defaultUsefulLifeMonths          Int       @default(36) @map("default_useful_life_months")
+  assetAccountId                   String?   @map("asset_account_id")
+  depreciationExpenseAccountId     String?   @map("depreciation_expense_account_id")
+  accumulatedDepreciationAccountId String?   @map("accumulated_depreciation_account_id")
+  isActive                         Boolean   @default(true) @map("is_active")
+  createdAt                        DateTime  @default(now()) @map("created_at")
+  updatedAt                        DateTime  @updatedAt @map("updated_at")
+  deletedAt                        DateTime? @map("deleted_at")
+
+  company                        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assetAccount                   LedgerAccount? @relation("AssetCategoryAssetAccount", fields: [assetAccountId], references: [id], onDelete: SetNull)
+  depreciationExpenseAccount     LedgerAccount? @relation("AssetCategoryDepreciationExpenseAccount", fields: [depreciationExpenseAccountId], references: [id], onDelete: SetNull)
+  accumulatedDepreciationAccount LedgerAccount? @relation("AssetCategoryAccumulatedDepreciationAccount", fields: [accumulatedDepreciationAccountId], references: [id], onDelete: SetNull)
+  assets                         Asset[]
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt])
+  @@map("asset_categories")
+}
+
+/// A registered fixed asset. Registering one does NOT post an acquisition
+/// journal entry — the purchase is assumed already recorded elsewhere
+/// (e.g. via Purchase + a Payment), so Assets stays focused on tracking
+/// depreciation and disposal rather than double-booking the acquisition.
+model Asset {
+  id                           String      @id @default(uuid())
+  companyId                    String      @map("company_id")
+  categoryId                   String      @map("category_id")
+  assetNumber                  String      @map("asset_number")
+  name                         String
+  purchaseDate                 DateTime    @map("purchase_date")
+  purchaseCostCents            Int         @map("purchase_cost_cents")
+  salvageValueCents            Int         @default(0) @map("salvage_value_cents")
+  usefulLifeMonths             Int         @map("useful_life_months")
+  accumulatedDepreciationCents Int         @default(0) @map("accumulated_depreciation_cents")
+  currency                     String      @default("USD")
+  status                       AssetStatus @default(ACTIVE)
+  disposalDate                 DateTime?   @map("disposal_date")
+  disposalProceedsCents        Int?        @map("disposal_proceeds_cents")
+  disposalJournalEntryId       String?     @unique @map("disposal_journal_entry_id")
+  note                         String?
+  createdAt                    DateTime    @default(now()) @map("created_at")
+  updatedAt                    DateTime    @updatedAt @map("updated_at")
+  deletedAt                    DateTime?   @map("deleted_at")
+
+  company              Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category             AssetCategory      @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  disposalJournalEntry JournalEntry?      @relation(fields: [disposalJournalEntryId], references: [id], onDelete: SetNull)
+  depreciationLines    DepreciationLine[]
+
+  @@unique([companyId, assetNumber])
+  @@index([companyId, deletedAt, status])
+  @@index([categoryId])
+  @@map("assets")
+}
+
+/// A depreciation period. `generate` (DRAFT only) posts one period of
+/// straight-line depreciation for every ACTIVE asset with remaining
+/// depreciable value, in a single JournalEntry — the real side effect,
+/// same dedicated-action precedent as PurchaseOrder's receive and
+/// Payroll's PayRun.generate.
+model DepreciationRun {
+  id             String                @id @default(uuid())
+  companyId      String                @map("company_id")
+  createdById    String?               @map("created_by_id")
+  periodDate     DateTime              @map("period_date")
+  status         DepreciationRunStatus @default(DRAFT)
+  journalEntryId String?               @unique @map("journal_entry_id")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+  deletedAt      DateTime?             @map("deleted_at")
+
+  company      Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy    User?              @relation("DepreciationRunCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  journalEntry JournalEntry?      @relation(fields: [journalEntryId], references: [id], onDelete: SetNull)
+  lines        DepreciationLine[]
+
+  @@index([companyId, deletedAt, status])
+  @@map("depreciation_runs")
+}
+
+/// One asset's computed depreciation for a DepreciationRun — generated,
+/// not hand-entered, mirroring Payroll's Payslip-per-employee convention.
+model DepreciationLine {
+  id                    String   @id @default(uuid())
+  companyId             String   @map("company_id")
+  depreciationRunId     String   @map("depreciation_run_id")
+  assetId               String   @map("asset_id")
+  amountCents           Int      @map("amount_cents")
+  accumulatedAfterCents Int      @map("accumulated_after_cents")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  depreciationRun DepreciationRun @relation(fields: [depreciationRunId], references: [id], onDelete: Cascade)
+  asset           Asset           @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  @@unique([depreciationRunId, assetId])
+  @@index([companyId, assetId])
+  @@map("depreciation_lines")
+}
+
+// ---------------------------------------------------------------------------
+// Recruitment (Milestone 7l — twelfth business module)
+// ---------------------------------------------------------------------------
+
+enum JobPostingStatus {
+  OPEN
+  ON_HOLD
+  CLOSED
+}
+
+enum ApplicationStatus {
+  APPLIED
+  SCREENING
+  INTERVIEWING
+  OFFERED
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+model JobPosting {
+  id             String           @id @default(uuid())
+  companyId      String           @map("company_id")
+  departmentId   String?          @map("department_id")
+  title          String
+  description    String?
+  employmentType EmploymentType   @default(FULL_TIME) @map("employment_type")
+  openings       Int              @default(1)
+  status         JobPostingStatus @default(OPEN)
+  postedAt       DateTime         @default(now()) @map("posted_at")
+  closedAt       DateTime?        @map("closed_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  deletedAt      DateTime?        @map("deleted_at")
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department   Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  applications Application[]
+
+  @@index([companyId, deletedAt, status])
+  @@map("job_postings")
+}
+
+model Candidate {
+  id        String    @id @default(uuid())
+  companyId String    @map("company_id")
+  firstName String    @map("first_name")
+  lastName  String    @map("last_name")
+  email     String
+  phone     String?
+  resumeUrl String?   @map("resume_url")
+  source    String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  applications Application[]
+
+  @@index([companyId, deletedAt])
+  @@index([companyId, email])
+  @@map("candidates")
+}
+
+/// A Candidate's application to a JobPosting, moving through the pipeline
+/// APPLIED -> SCREENING -> INTERVIEWING -> OFFERED -> HIRED, or REJECTED/
+/// WITHDRAWN at any point before HIRED. `hire` is a dedicated action (not a
+/// plain status update) since it has a real side effect: creating an HR
+/// Employee record via a direct tx.employee.create call — the same
+/// cross-module tx.* convention Purchase's receive() uses for Inventory,
+/// rather than injecting HrModule's services.
+model Application {
+  id              String            @id @default(uuid())
+  companyId       String            @map("company_id")
+  jobPostingId    String            @map("job_posting_id")
+  candidateId     String            @map("candidate_id")
+  status          ApplicationStatus @default(APPLIED)
+  appliedAt       DateTime          @default(now()) @map("applied_at")
+  notes           String?
+  rejectionReason String?           @map("rejection_reason")
+  hiredEmployeeId String?           @unique @map("hired_employee_id")
+  reviewedAt      DateTime?         @map("reviewed_at")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  deletedAt       DateTime?         @map("deleted_at")
+
+  company       Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  jobPosting    JobPosting  @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  candidate     Candidate   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  hiredEmployee Employee?   @relation(fields: [hiredEmployeeId], references: [id], onDelete: SetNull)
+  interviews    Interview[]
+
+  @@unique([jobPostingId, candidateId])
+  @@index([companyId, deletedAt, status])
+  @@map("applications")
+}
+
+/// A scheduled interview round for an Application. `interviewerId` is
+/// optional since an interview can be scheduled before an interviewer is
+/// assigned.
+model Interview {
+  id            String          @id @default(uuid())
+  companyId     String          @map("company_id")
+  applicationId String          @map("application_id")
+  interviewerId String?         @map("interviewer_id")
+  stage         String
+  scheduledAt   DateTime        @map("scheduled_at")
+  status        InterviewStatus @default(SCHEDULED)
+  feedback      String?
+  rating        Int?
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  interviewer Employee?   @relation("InterviewInterviewer", fields: [interviewerId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, applicationId])
+  @@map("interviews")
+}
+
+// ---------------------------------------------------------------------------
+// Contracts (Milestone 7m — thirteenth business module)
+// ---------------------------------------------------------------------------
+
+enum ContractType {
+  SALES
+  PURCHASE
+  SERVICE
+  EMPLOYMENT
+  NDA
+  OTHER
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+  RENEWED
+}
+
+/// A contract with a counterparty (CrmAccount), moving DRAFT -> ACTIVE ->
+/// EXPIRED or TERMINATED, or RENEWED — a dedicated `renew` action creates a
+/// successor Contract (parentContractId points back at this one) rather
+/// than mutating dates in place, the same "conversion creates a new linked
+/// record" precedent as CRM's lead conversion and Recruitment's hire.
+/// Comments/Attachments are reused via the generic polymorphic system
+/// (entityType "Contract"), not duplicated.
+model Contract {
+  id                String         @id @default(uuid())
+  companyId         String         @map("company_id")
+  contractNumber    String         @map("contract_number")
+  title             String
+  type              ContractType   @default(SERVICE)
+  accountId         String?        @map("account_id")
+  ownerId           String?        @map("owner_id")
+  status            ContractStatus @default(DRAFT)
+  valueCents        Int            @default(0) @map("value_cents")
+  currency          String         @default("USD")
+  startDate         DateTime       @map("start_date")
+  endDate           DateTime       @map("end_date")
+  autoRenew         Boolean        @default(false) @map("auto_renew")
+  renewalTermMonths Int?           @map("renewal_term_months")
+  terminatedAt      DateTime?      @map("terminated_at")
+  terminationReason String?        @map("termination_reason")
+  parentContractId  String?        @unique @map("parent_contract_id")
+  note              String?
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+  deletedAt         DateTime?      @map("deleted_at")
+
+  company           Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account           CrmAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  owner             User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  parentContract    Contract?   @relation("ContractRenewal", fields: [parentContractId], references: [id], onDelete: SetNull)
+  renewedAsContract Contract?   @relation("ContractRenewal")
+
+  @@unique([companyId, contractNumber])
+  @@index([companyId, deletedAt, status])
+  @@index([accountId])
+  @@map("contracts")
+}
+
+// ---------------------------------------------------------------------------
+// Manufacturing (Milestone 7n — fourteenth business module)
+// ---------------------------------------------------------------------------
+
+enum WorkOrderStatus {
+  DRAFT
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+/// A recipe: how many units of each component Product are consumed to
+/// produce one unit of a finished-good Product. A WorkOrder references a
+/// BillOfMaterial and multiplies each line's quantity by the work order's
+/// own planned quantity when consuming components at `start`.
+model BillOfMaterial {
+  id        String    @id @default(uuid())
+  companyId String    @map("company_id")
+  productId String    @map("product_id")
+  name      String
+  isActive  Boolean   @default(true) @map("is_active")
+  note      String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  product    Product     @relation("BomOutputProduct", fields: [productId], references: [id], onDelete: Restrict)
+  lines      BomLine[]
+  workOrders WorkOrder[]
+
+  @@index([companyId, deletedAt])
+  @@index([productId])
+  @@map("bills_of_material")
+}
+
+model BomLine {
+  id                 String @id @default(uuid())
+  bomId              String @map("bom_id")
+  componentProductId String @map("component_product_id")
+  quantity           Int
+
+  bom              BillOfMaterial @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  componentProduct Product        @relation("BomComponentProduct", fields: [componentProductId], references: [id], onDelete: Restrict)
+
+  @@index([bomId])
+  @@index([componentProductId])
+  @@map("bom_lines")
+}
+
+/// A production run against a BillOfMaterial. `start` (DRAFT -> IN_PROGRESS)
+/// transactionally consumes each component's stock — quantity = that BOM
+/// line's quantity times this work order's own quantity — at the work
+/// order's warehouse, reusing the same "Insufficient stock" guard
+/// Inventory's own manual movements use. `complete` (IN_PROGRESS ->
+/// COMPLETED) then posts the finished-good yield into that same warehouse.
+/// Cancellation is only allowed from DRAFT, since nothing has been consumed
+/// yet to reverse.
+model WorkOrder {
+  id              String          @id @default(uuid())
+  companyId       String          @map("company_id")
+  workOrderNumber String          @map("work_order_number")
+  bomId           String          @map("bom_id")
+  productId       String          @map("product_id")
+  warehouseId     String          @map("warehouse_id")
+  quantity        Int
+  status          WorkOrderStatus @default(DRAFT)
+  plannedDate     DateTime?       @map("planned_date")
+  startedAt       DateTime?       @map("started_at")
+  completedAt     DateTime?       @map("completed_at")
+  note            String?
+  createdById     String?         @map("created_by_id")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  deletedAt       DateTime?       @map("deleted_at")
+
+  company   Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bom       BillOfMaterial @relation(fields: [bomId], references: [id], onDelete: Restrict)
+  product   Product        @relation("WorkOrderOutputProduct", fields: [productId], references: [id], onDelete: Restrict)
+  warehouse Warehouse      @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  createdBy User?          @relation("WorkOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, workOrderNumber])
+  @@index([companyId, deletedAt, status])
+  @@map("work_orders")
+}
+
+// ---------------------------------------------------------------------------
+// Point of Sale (Milestone 7o — fifteenth business module)
+// ---------------------------------------------------------------------------
+
+enum PosSessionStatus {
+  OPEN
+  CLOSED
+}
+
+enum PosSaleStatus {
+  COMPLETED
+  VOIDED
+  REFUNDED
+}
+
+/// A cashier's shift at a register: opened with a starting cash float,
+/// accumulates PosSales while OPEN, and is closed by counting the drawer —
+/// `expectedCashCents` (opening float + cash sales - cash refunds/voids) is
+/// compared against `countedCashCents` to produce `cashDifferenceCents`, the
+/// standard till-reconciliation workflow.
+model PosRegisterSession {
+  id                  String           @id @default(uuid())
+  companyId           String           @map("company_id")
+  sessionNumber       String           @map("session_number")
+  warehouseId         String           @map("warehouse_id")
+  status              PosSessionStatus @default(OPEN)
+  openingFloatCents   Int              @default(0) @map("opening_float_cents")
+  expectedCashCents   Int?             @map("expected_cash_cents")
+  countedCashCents    Int?             @map("counted_cash_cents")
+  cashDifferenceCents Int?             @map("cash_difference_cents")
+  openedById          String?          @map("opened_by_id")
+  closedById          String?          @map("closed_by_id")
+  openedAt            DateTime         @default(now()) @map("opened_at")
+  closedAt            DateTime?        @map("closed_at")
+  note                String?
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+  deletedAt           DateTime?        @map("deleted_at")
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  openedBy  User?     @relation("PosSessionOpenedBy", fields: [openedById], references: [id], onDelete: SetNull)
+  closedBy  User?     @relation("PosSessionClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
+  sales     PosSale[]
+
+  @@unique([companyId, sessionNumber])
+  @@index([companyId, deletedAt, status])
+  @@index([warehouseId])
+  @@map("pos_register_sessions")
+}
+
+/// A completed register sale — stock is deducted immediately at creation
+/// (there is no draft stage, unlike Sales' Quote -> Order -> Invoice), the
+/// same "reuse Inventory's own movement-recording logic" convention every
+/// stock-moving action in this codebase follows, posting the existing SALE
+/// StockMovementType. `void` (same session still open) and `refund` (any
+/// time after) both restock via the existing RETURN type — two distinct
+/// real-world reasons a sale unwinds, the same "multiple terminal outcomes
+/// from one active state" shape as Contracts' terminate/expire.
+model PosSale {
+  id                  String        @id @default(uuid())
+  companyId           String        @map("company_id")
+  saleNumber          String        @map("sale_number")
+  sessionId           String        @map("session_id")
+  warehouseId         String        @map("warehouse_id")
+  accountId           String?       @map("account_id")
+  soldById            String?       @map("sold_by_id")
+  items               Json
+  subtotalCents       Int           @default(0) @map("subtotal_cents")
+  totalCents          Int           @default(0) @map("total_cents")
+  currency            String        @default("USD")
+  paymentMethod       PaymentMethod @default(CASH)
+  amountTenderedCents Int?          @map("amount_tendered_cents")
+  changeDueCents      Int?          @map("change_due_cents")
+  status              PosSaleStatus @default(COMPLETED)
+  voidedAt            DateTime?     @map("voided_at")
+  voidReason          String?       @map("void_reason")
+  refundedAt          DateTime?     @map("refunded_at")
+  refundReason        String?       @map("refund_reason")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+  deletedAt           DateTime?     @map("deleted_at")
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  session   PosRegisterSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  warehouse Warehouse          @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  account   CrmAccount?        @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  soldBy    User?              @relation("PosSaleSoldBy", fields: [soldById], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, saleNumber])
+  @@index([companyId, deletedAt, status])
+  @@index([sessionId])
+  @@map("pos_sales")
+}
+
+// ---------------------------------------------------------------------------
+// Attendance (Milestone 7p — sixteenth business module)
+// ---------------------------------------------------------------------------
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  HALF_DAY
+  ABSENT
+  ON_LEAVE
+}
+
+/// One row per Employee per calendar day. `clockIn` upserts today's row and
+/// stamps clockInAt, auto-detecting LATE against a fixed cutoff (the same
+/// "hardcoded business-rule constant" convention as Contracts' 30-day
+/// expiring-soon window); `clockOut` stamps clockOutAt and computes
+/// workedMinutes. Days without a clock event (a no-show, an approved leave
+/// day) are set directly via `mark` rather than forced through clockIn/Out.
+model AttendanceRecord {
+  id            String           @id @default(uuid())
+  companyId     String           @map("company_id")
+  employeeId    String           @map("employee_id")
+  date          DateTime         @map("date")
+  clockInAt     DateTime?        @map("clock_in_at")
+  clockOutAt    DateTime?        @map("clock_out_at")
+  status        AttendanceStatus @default(PRESENT)
+  workedMinutes Int?             @map("worked_minutes")
+  note          String?
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  deletedAt     DateTime?        @map("deleted_at")
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, date])
+  @@index([companyId, deletedAt, status])
+  @@index([companyId, date])
+  @@map("attendance_records")
+}
+
+// ---------------------------------------------------------------------------
+// Fleet Management (Milestone 7q — seventeenth business module)
+// ---------------------------------------------------------------------------
+
+enum VehicleStatus {
+  ACTIVE
+  IN_MAINTENANCE
+  RETIRED
+}
+
+enum TripStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum MaintenanceType {
+  SERVICE
+  REPAIR
+  INSPECTION
+}
+
+enum MaintenanceStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+/// A company vehicle. `odometerReading` is a cache kept in sync by Trip
+/// completion (the same "cache maintained transactionally alongside each
+/// movement" convention Inventory's StockItem uses), not a standalone
+/// source of truth — the Trip history is that.
+model Vehicle {
+  id                 String        @id @default(uuid())
+  companyId          String        @map("company_id")
+  registrationNumber String        @map("registration_number")
+  make               String
+  model              String
+  year               Int?
+  status             VehicleStatus @default(ACTIVE)
+  odometerReading    Int           @default(0) @map("odometer_reading")
+  fuelType           String?       @map("fuel_type")
+  assignedDriverId   String?       @map("assigned_driver_id")
+  purchaseDate       DateTime?     @map("purchase_date")
+  note               String?
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+  deletedAt          DateTime?     @map("deleted_at")
+
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assignedDriver     Employee?           @relation("VehicleAssignedDriver", fields: [assignedDriverId], references: [id], onDelete: SetNull)
+  trips              Trip[]
+  maintenanceRecords MaintenanceRecord[]
+  shipments          Shipment[]
+
+  @@unique([companyId, registrationNumber])
+  @@index([companyId, deletedAt, status])
+  @@map("vehicles")
+}
+
+/// A single vehicle use, logged as it happens rather than planned in
+/// advance — `create` is already the start: it snapshots the vehicle's
+/// current odometer reading as `startOdometer`. `complete` validates
+/// `endOdometer` against that snapshot, computes `distance`, and updates
+/// the vehicle's own `odometerReading` — the same "reuse the resource's own
+/// cache-update logic" convention every stock-moving action in this
+/// codebase follows for StockItem.
+model Trip {
+  id            String     @id @default(uuid())
+  companyId     String     @map("company_id")
+  vehicleId     String     @map("vehicle_id")
+  driverId      String?    @map("driver_id")
+  purpose       String?
+  status        TripStatus @default(IN_PROGRESS)
+  startOdometer Int        @map("start_odometer")
+  endOdometer   Int?       @map("end_odometer")
+  distance      Int?
+  startedAt     DateTime   @default(now()) @map("started_at")
+  endedAt       DateTime?  @map("ended_at")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+  deletedAt     DateTime?  @map("deleted_at")
+
+  company Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  vehicle Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  driver  Employee? @relation("TripDriver", fields: [driverId], references: [id], onDelete: SetNull)
+
+  shipment Shipment?
+
+  @@index([companyId, deletedAt, status])
+  @@index([vehicleId])
+  @@map("trips")
+}
+
+/// A scheduled or in-progress upkeep job against a Vehicle. `start`
+/// (SCHEDULED -> IN_PROGRESS) flips the vehicle's own status to
+/// IN_MAINTENANCE; `complete` (IN_PROGRESS -> COMPLETED) flips it back to
+/// ACTIVE and records the actual completion date/cost — a real
+/// cross-entity side effect, the same "workflow action with a side effect
+/// on a related record" shape as Recruitment's hire() creating an Employee.
+model MaintenanceRecord {
+  id            String            @id @default(uuid())
+  companyId     String            @map("company_id")
+  vehicleId     String            @map("vehicle_id")
+  type          MaintenanceType   @default(SERVICE)
+  status        MaintenanceStatus @default(SCHEDULED)
+  scheduledDate DateTime          @map("scheduled_date")
+  completedDate DateTime?         @map("completed_date")
+  costCents     Int?              @map("cost_cents")
+  description   String?
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  deletedAt     DateTime?         @map("deleted_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, deletedAt, status])
+  @@index([vehicleId])
+  @@map("maintenance_records")
+}
+
+enum ShipmentStatus {
+  DRAFT
+  DISPATCHED
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
+/// An outbound delivery of goods from a Warehouse to a destination.
+/// `dispatch` (DRAFT -> DISPATCHED) is the pivotal action: it deducts the
+/// line items' stock using the same SALE StockMovementType and
+/// "Insufficient stock" guard as POS sales, and — when a vehicle is
+/// assigned — opens a Fleet Trip via a direct `tx.trip.create`, the same
+/// cross-module-write-inside-a-transaction convention Purchase's receive()
+/// established. Delivering does *not* close that trip: completing a trip
+/// needs a real end-odometer reading only Fleet can supply, so the trip
+/// stays Fleet's to close.
+model Shipment {
+  id                 String         @id @default(uuid())
+  companyId          String         @map("company_id")
+  shipmentNumber     String         @map("shipment_number")
+  salesOrderId       String?        @map("sales_order_id")
+  accountId          String?        @map("account_id")
+  warehouseId        String         @map("warehouse_id")
+  vehicleId          String?        @map("vehicle_id")
+  driverId           String?        @map("driver_id")
+  tripId             String?        @unique @map("trip_id")
+  status             ShipmentStatus @default(DRAFT)
+  items              Json
+  destinationAddress String         @map("destination_address")
+  contactName        String?        @map("contact_name")
+  contactPhone       String?        @map("contact_phone")
+  scheduledDate      DateTime?      @map("scheduled_date")
+  dispatchedAt       DateTime?      @map("dispatched_at")
+  deliveredAt        DateTime?      @map("delivered_at")
+  failureReason      String?        @map("failure_reason")
+  note               String?
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+  deletedAt          DateTime?      @map("deleted_at")
+
+  company    Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  salesOrder SalesOrder?     @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  account    CrmAccount?     @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  warehouse  Warehouse       @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  vehicle    Vehicle?        @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  driver     Employee?       @relation("ShipmentDriver", fields: [driverId], references: [id], onDelete: SetNull)
+  trip       Trip?           @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  events     DeliveryEvent[]
+
+  @@unique([companyId, shipmentNumber])
+  @@index([companyId, deletedAt, status])
+  @@index([warehouseId])
+  @@map("shipments")
+}
+
+/// One entry in a shipment's tracking timeline. Every workflow action
+/// appends one, so the delivery history is an append-only record rather
+/// than something reconstructed from the shipment's current status.
+model DeliveryEvent {
+  id          String         @id @default(uuid())
+  companyId   String         @map("company_id")
+  shipmentId  String         @map("shipment_id")
+  status      ShipmentStatus
+  location    String?
+  note        String?
+  occurredAt  DateTime       @default(now()) @map("occurred_at")
+  createdById String?        @map("created_by_id")
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  shipment  Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  createdBy User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([shipmentId, occurredAt])
+  @@map("delivery_events")
+}
+
+enum DocumentStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+/// A node in the document tree. Self-referencing via `parentId`; the
+/// service rejects any move that would make a folder its own ancestor,
+/// the same self-reference guard Manufacturing uses to stop a product
+/// becoming a component of its own BOM.
+model DocumentFolder {
+  id          String    @id @default(uuid())
+  companyId   String    @map("company_id")
+  parentId    String?   @map("parent_id")
+  name        String
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
+
+  company   Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent    DocumentFolder?  @relation("DocumentFolderTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children  DocumentFolder[] @relation("DocumentFolderTree")
+  documents Document[]
+
+  @@unique([companyId, parentId, name])
+  @@index([companyId, deletedAt])
+  @@map("document_folders")
+}
+
+/// A controlled document. Editing is serialised by an exclusive
+/// check-out: `checkedOutById` is the lock holder, and only that user may
+/// check in a new version or release it. This is the first
+/// concurrency-control pattern in the codebase — every other module
+/// guards on status alone, which is enough when only one actor advances a
+/// record, but not when several people edit the same file.
+model Document {
+  id                   String         @id @default(uuid())
+  companyId            String         @map("company_id")
+  folderId             String?        @map("folder_id")
+  title                String
+  description          String?
+  status               DocumentStatus @default(DRAFT)
+  currentVersionNumber Int            @default(0) @map("current_version_number")
+  checkedOutById       String?        @map("checked_out_by_id")
+  checkedOutAt         DateTime?      @map("checked_out_at")
+  ownerId              String?        @map("owner_id")
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+  deletedAt            DateTime?      @map("deleted_at")
+
+  company      Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  folder       DocumentFolder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  checkedOutBy User?             @relation("DocumentCheckedOutBy", fields: [checkedOutById], references: [id], onDelete: SetNull)
+  owner        User?             @relation("DocumentOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  versions     DocumentVersion[]
+
+  @@index([companyId, deletedAt, status])
+  @@index([folderId])
+  @@map("documents")
+}
+
+/// One immutable revision of a Document. Versions are never edited or
+/// deleted — checking in always appends the next `versionNumber`, so the
+/// revision history is an append-only record, the same shape Logistics'
+/// delivery events use for a shipment's timeline.
+model DocumentVersion {
+  id            String   @id @default(uuid())
+  companyId     String   @map("company_id")
+  documentId    String   @map("document_id")
+  versionNumber Int      @map("version_number")
+  fileName      String   @map("file_name")
+  mimeType      String?  @map("mime_type")
+  sizeBytes     Int?     @map("size_bytes")
+  storageKey    String?  @map("storage_key")
+  note          String?
+  createdById   String?  @map("created_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  document  Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdBy User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([documentId, versionNumber])
+  @@index([documentId, versionNumber])
+  @@map("document_versions")
+}
+
+enum BillingInterval {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAUSED
+  CANCELLED
+  EXPIRED
+}
+
+/// A priced, recurring offering. The `billingInterval` is what makes
+/// recurrence possible: it drives both the period arithmetic when a
+/// subscription is billed and the normalisation used to express every
+/// plan's contribution to MRR on a common monthly footing.
+model SubscriptionPlan {
+  id              String          @id @default(uuid())
+  companyId       String          @map("company_id")
+  code            String
+  name            String
+  description     String?
+  priceCents      Int             @map("price_cents")
+  currency        String          @default("USD")
+  billingInterval BillingInterval @default(MONTHLY) @map("billing_interval")
+  trialDays       Int             @default(0) @map("trial_days")
+  isActive        Boolean         @default(true) @map("is_active")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  deletedAt       DateTime?       @map("deleted_at")
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  subscriptions Subscription[]
+
+  @@unique([companyId, code])
+  @@index([companyId, deletedAt, isActive])
+  @@map("subscription_plans")
+}
+
+/// A customer's ongoing enrolment in a plan. `currentPeriodStart`/`End`
+/// are the window the next bill covers; billing advances them by exactly
+/// one interval, so periods tile forward without gaps or overlaps.
+model Subscription {
+  id                 String             @id @default(uuid())
+  companyId          String             @map("company_id")
+  accountId          String             @map("account_id")
+  planId             String             @map("plan_id")
+  status             SubscriptionStatus @default(ACTIVE)
+  quantity           Int                @default(1)
+  startDate          DateTime           @map("start_date")
+  currentPeriodStart DateTime           @map("current_period_start")
+  currentPeriodEnd   DateTime           @map("current_period_end")
+  trialEndsAt        DateTime?          @map("trial_ends_at")
+  cancelledAt        DateTime?          @map("cancelled_at")
+  note               String?
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  deletedAt          DateTime?          @map("deleted_at")
+
+  company  Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  account  CrmAccount            @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  plan     SubscriptionPlan      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  invoices SubscriptionInvoice[]
+
+  @@index([companyId, deletedAt, status])
+  @@index([accountId])
+  @@map("subscriptions")
+}
+
+/// Links a billed period to the Sales invoice raised for it. The unique
+/// key on (subscriptionId, periodStart) is what makes billing idempotent:
+/// a period can only ever be invoiced once, so a retried or duplicated
+/// call cannot double-charge the customer.
+model SubscriptionInvoice {
+  id             String   @id @default(uuid())
+  companyId      String   @map("company_id")
+  subscriptionId String   @map("subscription_id")
+  invoiceId      String   @unique @map("invoice_id")
+  periodStart    DateTime @map("period_start")
+  periodEnd      DateTime @map("period_end")
+  amountCents    Int      @map("amount_cents")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, periodStart])
+  @@index([subscriptionId, periodStart])
+  @@map("subscription_invoices")
+}

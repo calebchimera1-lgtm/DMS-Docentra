@@ -1,0 +1,38 @@
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { Type } from "class-transformer";
+import { ArrayMinSize, IsArray, IsDateString, IsOptional, IsString, IsUUID, MaxLength, ValidateNested } from "class-validator";
+import { LineItemDto } from "../../common/line-item.dto";
+
+export class CreateInvoiceDto {
+  @ApiProperty()
+  @IsUUID()
+  accountId!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  contactId?: string;
+
+  @ApiProperty({ type: [LineItemDto] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => LineItemDto)
+  items!: LineItemDto[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  dueDate?: string;
+
+  @ApiPropertyOptional({ default: "USD" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(3)
+  currency?: string;
+
+  @ApiPropertyOptional({ description: "User to notify on invoice lifecycle events (e.g. payment)." })
+  @IsOptional()
+  @IsUUID()
+  ownerId?: string;
+}

@@ -1,0 +1,34 @@
+# No Service — the worker doesn't listen for HTTP, it only consumes
+# BullMQ jobs from Redis. Scale replicas to add processing throughput.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: omniflow-worker
+  labels:
+    app: omniflow-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: omniflow-worker
+  template:
+    metadata:
+      labels:
+        app: omniflow-worker
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: worker
+          image: omniflow-worker:latest
+          envFrom:
+            - secretRef:
+                name: omniflow-worker-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: 500m
+              memory: 384Mi

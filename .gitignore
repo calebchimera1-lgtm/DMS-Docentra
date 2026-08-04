@@ -1,50 +1,60 @@
-## Node
+# Dependencies
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+.pnpm-store/
+
+# Build outputs
 dist/
 build/
-coverage/
+.next/
+out/
+*.tsbuildinfo
+
+# Turborepo
+.turbo/
+
+# Env
 .env
-.env.*
+.env.*.local
+.env.local
 !.env.example
 
-## Backend
-backend/uploads/*
-!backend/uploads/.gitkeep
-backend/dist/
-backend/tests/tmp-uploads/
-backend/.env
-
-## Web
-web/dist/
-web/.vite/
-
-## Flutter / Dart
-mobile/.dart_tool/
-mobile/.packages
-mobile/build/
-mobile/.flutter-plugins
-mobile/.flutter-plugins-dependencies
-mobile/ios/Pods/
-mobile/ios/.symlinks/
-mobile/android/.gradle/
-mobile/**/*.iml
-
-## IDE
-.idea/
-.vscode/
-*.swp
-*.DS_Store
-
-## Docker
-docker/volumes/
-
-## Logs
+# Logs
 logs/
 *.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-## Web tests
-web/coverage/
-web/tsconfig.tsbuildinfo
+# Testing
+coverage/
+.nyc_output/
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Prisma
+packages/database/generated/
+
+# GraphQL — auto-generated schema (code-first, regenerated on boot)
+apps/api/src/schema.gql
+
+# Local storage / uploads
+storage/
+uploads/
+docker/volumes/
+
+# Kubernetes secrets — never commit a filled-in copy of the template
+infra/k8s/base/secret.yaml
+
+# Misc
+*.pem
+.eslintcache
+*.rdb

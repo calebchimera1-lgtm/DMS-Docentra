@@ -1,0 +1,44 @@
+# A basic in-cluster Redis for dev/staging clusters. Production
+# deployments should point REDIS_URL (in secret.yaml) at a managed Redis
+# instance (ElastiCache, Memorystore, etc.) instead — this Deployment has
+# no persistence, backups, or HA, and BullMQ job data (queued webhook
+# deliveries, the maintenance schedule) would be lost on pod restart.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: omniflow-redis
+  labels:
+    app: omniflow-redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: omniflow-redis
+  template:
+    metadata:
+      labels:
+        app: omniflow-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: omniflow-redis
+spec:
+  selector:
+    app: omniflow-redis
+  ports:
+    - port: 6379
+      targetPort: 6379

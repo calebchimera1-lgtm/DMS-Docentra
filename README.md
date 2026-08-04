@@ -1,171 +1,316 @@
-# DOCENTRA
+# Omniflow
 
-**Enterprise Document Management System** — a document lifecycle, workflow,
-and compliance platform built with a Node.js/Express + PostgreSQL backend, a
-React web application, and a Flutter mobile client.
+Omniflow is a modular, enterprise-grade ERP platform: multi-company,
+multi-branch, multi-user, with role-based access control, a REST + GraphQL
+API, a plugin system, and a growing set of business modules (CRM, Sales,
+Inventory, Accounting, HR, Projects, and more).
 
-> **Scope note.** The full product specification for this project lists
-> several hundred discrete features across 26 categories — the kind of
-> surface area enterprise ECM vendors (OpenText, M-Files, DocuWare) build out
-> over years with full engineering teams. Rather than stub every bullet
-> shallowly, this build implements a **real, tested, end-to-end core** across
-> every major category — see [What's implemented](#whats-implemented) and
-> [Roadmap](#roadmap--not-implemented) below for the explicit line between
-> the two.
+> **Build status.** Omniflow is being built incrementally, milestone by
+> milestone, with a checkpoint after each. See [Milestones](#milestones)
+> below for what's done and what's next.
 
-## What's implemented
+## Tech stack
 
-Fully functional and covered by automated tests + a live manual verification
-pass (backend integration tests + a scripted browser walkthrough of the web
-app), unless noted otherwise:
-
-- **Auth & Identity**: registration (creates an org + Super Admin), login,
-  JWT access + rotating refresh tokens, TOTP MFA with backup codes, password
-  policy enforcement, account lockout after failed attempts, session/device
-  management with remote revocation, password reset via email.
-- **RBAC**: roles, granular permissions, a role↔permission matrix editor,
-  department/branch org hierarchy, per-resource temporary access grants.
-- **Documents**: upload (single + bulk), nested folders, rename/move/copy/
-  delete, recycle bin + restore + permanent delete, checksum-based duplicate
-  detection, check-in/check-out locking, full version history with restore
-  and diff/comparison, tags, custom metadata fields, comments (with
-  `@mention` notifications), favorites, password-protected/expiring/
-  download-limited public share links, AES-256-GCM encryption at rest,
-  optional PDF watermarking on download.
-- **OCR & Search**: `tesseract.js` OCR for images, PDF text-layer extraction,
-  plain-text/CSV/JSON/XML/HTML indexing — all feeding a full-text search
-  across name/description/content/tags/author/department/date/file type,
-  plus saved searches.
-- **Workflow automation**: multi-step, multi-level approval templates routed
-  by role or specific user, approve/reject/delegate, SLA due dates,
-  automatic notifications to approvers and initiators.
-- **E-Signatures**: multi-signatory requests, drawn or typed signatures,
-  SHA-256 integrity hash recorded at signing time with a verification
-  endpoint.
-- **Notifications**: in-app + email (SMTP via `nodemailer`) + real-time
-  push over Socket.IO.
-- **Audit log**: every mutating action recorded with actor/IP/user-agent/
-  resource, filterable, CSV export.
-- **Dashboards**: personal dashboard (recent/favorite docs, pending
-  approvals/signatures, storage usage, activity feed) and an executive
-  analytics dashboard (workflow breakdown, documents by type, department
-  headcount, storage forecasting inputs).
-- **Admin**: user management, roles/permissions, branches, departments,
-  organization settings.
-- **Storage**: pluggable local-disk or S3-compatible (AWS S3 / MinIO) driver.
-- **Web app**: React 18 + TypeScript SPA covering every module above.
-- **Mobile app**: Flutter client (Dart source — see
-  [mobile/README.md](mobile/README.md) for a note on platform scaffolding)
-  covering login+MFA, folder browsing, camera-scan/gallery/file upload,
-  offline-cached document listing, check-in/out, approvals, e-signature
-  signing, and notifications.
-- **Deployment**: Docker Compose stack (PostgreSQL, MinIO, backend, web via
-  Nginx) — see [Docker caveat](#docker-caveat-in-this-development-session).
-
-## Roadmap / not implemented
-
-Explicitly out of scope for this build (would each be a substantial project
-on their own): SSO/LDAP/Active Directory federation, biometric/facial/
-fingerprint login, blockchain audit trail, GraphQL API, native SDKs/developer
-sandbox/webhooks, Microsoft 365/Google Workspace/Teams/Slack/WhatsApp/CRM/ERP
-integrations, CAD/AutoCAD rendering, handwriting/ID/passport/invoice
-recognition beyond generic OCR, AI contract analysis/risk detection/
-translation/sentiment analysis, physical records/barcode/RFID tracking,
-multi-cloud/CDN/edge storage, client/vendor portals, real-time collaborative
-document editing, and high-availability clustering/load balancing. Several of
-these have data-model or API hooks already in place (e.g. `RetentionPolicy`,
-`Confidentiality` levels) that a follow-up phase could build on.
+| Layer          | Choice                                                         |
+| -------------- | ---------------------------------------------------------------|
+| Frontend       | React, Next.js (App Router), TypeScript, Tailwind CSS, shadcn/ui |
+| Backend        | Node.js, NestJS (REST + GraphQL)                                |
+| Database       | PostgreSQL (via Prisma)                                         |
+| Caching        | Redis                                                            |
+| Object storage | S3-compatible (MinIO locally, AWS S3 in production)              |
+| Realtime       | Socket.IO                                                        |
+| Search         | Elasticsearch                                                    |
+| Auth           | JWT (access + refresh), OAuth, TOTP 2FA                          |
+| Payments       | Stripe, PayPal, M-Pesa                                           |
+| Containers     | Docker, Kubernetes                                               |
 
 ## Repository layout
 
 ```
-DMS-Docentra/
-  backend/    Node.js + Express + TypeScript + Prisma/PostgreSQL API
-  web/        React + TypeScript + Vite SPA
-  mobile/     Flutter (Dart) mobile client
-  docs/       Architecture and API reference
-  docker-compose.yml, .env.example   Full-stack deployment
+omniflow/
+  apps/
+    web/        Next.js frontend (App Router, Tailwind, shadcn/ui)
+    api/        NestJS backend (REST + GraphQL, modular monolith, microservice-ready)
+    worker/     Background job processor (BullMQ/Redis) — session cleanup, webhook delivery
+  packages/
+    database/   Prisma schema, migrations, seed scripts — shared by api/worker
+    shared/     Shared TypeScript types, DTOs, constants (used by api + web)
+    ui/         Shared shadcn/ui-based component library (used by web)
+    config/     Shared ESLint/TypeScript configs
+  infra/
+    docker/     Dockerfiles for api/web
+    k8s/        Kubernetes manifests (base + environment overlays)
+    nginx/      Reverse proxy config for single-host Docker Compose deploys
+  docs/         Architecture, database, API, installation, deployment, user & admin manuals
+  scripts/      Operational scripts (backups, seeding, releases)
 ```
 
-Each app has its own `README`/`.env.example` with app-specific detail.
+This is a pnpm workspace managed with Turborepo — every app/package has its
+own `package.json`, and shared tooling lives in `packages/config`.
 
-## Getting started (local development, no Docker)
+## Milestones
 
-Prerequisites: Node.js 20+, PostgreSQL 14+ running locally.
+Built and reviewed one at a time, in this order:
+
+- [x] **1. Folder structure & tooling** — monorepo layout, bootable Next.js
+      + NestJS skeletons, Docker Compose for local infra, CI pipeline.
+- [x] **2. Database schema** — fully normalized PostgreSQL schema
+      (multi-company/branch, users, RBAC, audit logs, sessions,
+      notifications, files/attachments, comments), migrations, indexes,
+      views, triggers, a stored procedure, and seed data. See
+      [docs/database](docs/database/README.md).
+- [x] **3. Authentication** — JWT access/refresh tokens (rotation on
+      refresh), TOTP 2FA with backup codes, session/device management,
+      password policy + account lockout, rate limiting, an optional
+      Google OAuth flow. See [docs/api](docs/api/README.md#authentication).
+- [x] **4. User management & RBAC** — user CRUD, custom roles with a
+      permission matrix, branch CRUD + user/branch/role assignment, a
+      global `PermissionsGuard` enforcing it all, strict tenant
+      isolation. See [docs/api](docs/api/README.md#user-management--rbac).
+- [x] **5. Dashboard** — a real, working web app: login (with MFA), a
+      responsive sidebar/topbar shell (mobile drawer nav), dark/light
+      theme, and a dashboard home with live stat tiles, an activity
+      chart, and a recent-activity feed pulled from the API. See
+      [docs/architecture](docs/architecture/README.md#frontend-appsweb-added-in-milestone-5).
+- [x] **6. Core framework** — a code-first GraphQL API alongside REST,
+      Swagger docs, a global audit-log interceptor, notifications with a
+      JWT-authenticated Socket.IO gateway, S3-compatible file storage &
+      attachments, a DB-backed plugin system with an event-bridge to a
+      BullMQ job queue, a standalone `apps/worker` consumer, and hardened
+      security middleware (helmet, compression, GraphQL-aware rate
+      limiting). Kubernetes manifests (base + production overlay) round
+      out deployment. See [docs/api](docs/api/README.md#core-framework-milestone-6)
+      and [docs/deployment](docs/deployment/README.md).
+- [ ] **7+. Business modules** — CRM, Sales, Inventory, Accounting, HR,
+      Projects, and the rest, added one at a time.
+      - [x] **CRM** — accounts, contacts, leads (with lead → account/
+            contact conversion), and deals moving through a sales
+            pipeline. Full CRUD + GraphQL, search/filters, CSV export,
+            pipeline/funnel reports, RBAC, audit logging, and comments/
+            attachments on every record. See
+            [docs/api](docs/api/README.md#crm-milestone-7--first-business-module).
+      - [x] **Sales** — a products catalog and a quote → sales order →
+            invoice conversion chain, each stage gated by status
+            (accepted quotes only, one conversion each) with a
+            JSON line-item snapshot so historical documents never
+            drift if a product is later repriced. Full CRUD + GraphQL,
+            CSV export, revenue reports, RBAC, audit logging. See
+            [docs/api](docs/api/README.md#sales-milestone-7b--second-business-module).
+      - [x] **Inventory** — warehouses, per-warehouse stock levels, and
+            an append-only movement ledger (receipts, sales,
+            adjustments, transfers, returns). Every stock change is
+            recorded transactionally alongside the movement that
+            caused it, with overselling prevented at the database
+            transaction level. Full CRUD + GraphQL, low-stock
+            filtering, CSV export, stock-value reports, RBAC, audit
+            logging. See
+            [docs/api](docs/api/README.md#inventory-milestone-7c--third-business-module).
+      - [x] **Accounting** — a chart of accounts, double-entry journal
+            entries (rejecting unbalanced entries and unbalanced/
+            malformed lines before anything is written, immutable
+            once posted), and payments that atomically post a journal
+            entry and can settle a Sales invoice. Full CRUD + GraphQL,
+            P&L/balance reports, CSV export, RBAC, audit logging. See
+            [docs/api](docs/api/README.md#accounting-milestone-7d--fourth-business-module).
+      - [x] **HR** — departments, employees (with a manager
+            self-relation and an optional link to a system `User`),
+            and a leave-request approval workflow that resolves the
+            calling user to their own employee profile before letting
+            them approve or reject. Full CRUD + GraphQL, headcount
+            reports, CSV export, RBAC, audit logging. See
+            [docs/api](docs/api/README.md#hr-milestone-7e--fifth-business-module).
+      - [x] **Projects** — projects (optionally tied to a CRM account),
+            tasks with status/priority/assignee, and time entries
+            logged as minutes against a task, editable only by the
+            user who logged them. Full CRUD + GraphQL, task-status
+            reports, CSV export, RBAC, audit logging. See
+            [docs/api](docs/api/README.md#projects-milestone-7f--sixth-business-module).
+      - [x] **Support** — helpdesk tickets with an
+            assign/resolve/close/reopen workflow, reusing the generic
+            Comments/Attachments system from Milestone 7a for replies
+            and files instead of duplicating it. Full CRUD + GraphQL,
+            open/unassigned/overdue reports, CSV export, RBAC, audit
+            logging. See
+            [docs/api](docs/api/README.md#support-milestone-7g--seventh-business-module).
+      - [x] **Purchase** — suppliers, purchase orders
+            (DRAFT→SENT→CONFIRMED→RECEIVED), and a receiving action
+            that transactionally posts Inventory stock movements —
+            the buy-side counterpart to Sales, reusing its line-item
+            and document-numbering utilities outright. Full CRUD +
+            GraphQL, committed-spend reports, CSV export, RBAC, audit
+            logging. See
+            [docs/api](docs/api/README.md#purchase-milestone-7h--eighth-business-module).
+      - [x] **Payroll** — a salary component catalog (earnings/
+            deductions, fixed or percentage-based), pay runs with a
+            `generate` action that computes every eligible employee's
+            payslip from HR's existing salary data, and a `mark-paid`
+            action. Full CRUD + GraphQL, payslip-status reports, CSV
+            export, RBAC, audit logging. See
+            [docs/api](docs/api/README.md#payroll-milestone-7i--ninth-business-module).
+      - [x] **Expenses** — a categorized expense-claim workflow
+            (`DRAFT → SUBMITTED → APPROVED → PAID`) where approving a
+            claim posts a real, balanced double-entry `JournalEntry`
+            to Accounting — one debit line per expense category,
+            crediting the reimbursement-payable account the approver
+            picks. Full CRUD + GraphQL, claims-by-status and
+            spend-by-category reports, CSV export, RBAC, audit
+            logging. See
+            [docs/api](docs/api/README.md#expenses-milestone-7j--tenth-business-module).
+      - [x] **Assets** — a fixed-asset register with straight-line
+            depreciation runs (grouped by category into balanced
+            journal entries) and a disposal workflow that computes
+            and posts any resulting gain or loss across a
+            four-line balanced entry. Full CRUD + GraphQL,
+            summary/by-category reports, CSV export, RBAC, audit
+            logging. See
+            [docs/api](docs/api/README.md#assets-milestone-7k--eleventh-business-module).
+      - [x] **Recruitment** — job postings, candidates, and an
+            application pipeline (`APPLIED → SCREENING →
+            INTERVIEWING → OFFERED → HIRED`) with scheduled
+            interviews, ending in a `hire` action that creates a real
+            HR `Employee` record. Full CRUD + GraphQL, pipeline
+            reports, CSV export, RBAC, audit logging. See
+            [docs/api](docs/api/README.md#recruitment-milestone-7l--twelfth-business-module).
+      - [x] **Contracts** — contracts with a counterparty (CRM
+            account) moving `DRAFT → ACTIVE → EXPIRED`/`TERMINATED`,
+            plus a `renew` action that creates a linked successor
+            contract (rather than mutating dates in place) and marks
+            the original `RENEWED`. Full CRUD + GraphQL,
+            summary/by-status reports, CSV export, RBAC, audit
+            logging. See
+            [docs/api](docs/api/README.md#contracts-milestone-7m--thirteenth-business-module).
+      - [x] **Manufacturing** — bills of material (a finished product
+            plus component lines) and work orders that `start`
+            (transactionally consuming component stock, with the same
+            insufficient-stock guard Inventory's manual movements use)
+            and `complete` (posting the finished-good yield), closing
+            the loop with Inventory via two new `StockMovement` types.
+            Full CRUD + GraphQL, summary/by-status reports, CSV
+            export, RBAC, audit logging. See
+            [docs/api](docs/api/README.md#manufacturing-milestone-7n--fourteenth-business-module).
+      - [x] **Point of Sale** — register sessions (one open per
+            warehouse at a time) and sales that deduct stock
+            immediately with no draft stage, plus `void`/`refund`
+            actions that restock, and a `close` action that reconciles
+            counted cash against expected cash. Full CRUD + GraphQL,
+            summary/by-payment-method reports, CSV export, RBAC, audit
+            logging. See
+            [docs/api](docs/api/README.md#point-of-sale-milestone-7o--fifteenth-business-module).
+      - [x] **Attendance** — one record per employee per day, with a
+            `clock-in`/`clock-out` pair that auto-detects lateness and
+            computes minutes worked, plus a `mark` action for
+            no-clock-event days (absence, leave, half-day). Reports
+            are deliberately day-scoped (today only) rather than
+            all-time. Full CRUD + GraphQL, summary/by-status reports,
+            CSV export, RBAC, audit logging. See
+            [docs/api](docs/api/README.md#attendance-milestone-7p--sixteenth-business-module).
+      - [x] **Fleet Management** — vehicles, trips, and maintenance
+            jobs interlocked through the vehicle's own status: a trip
+            may only start on an `ACTIVE` vehicle and snapshots its
+            odometer, completing a trip writes the vehicle's new
+            odometer reading, and a maintenance job flips the vehicle
+            to `IN_MAINTENANCE` while it runs — so the two workflows
+            are mutually exclusive by construction. Drivers reuse the
+            existing HR employee record. Full CRUD + GraphQL,
+            summary/by-status reports, CSV export, RBAC, audit
+            logging. See
+            [docs/api](docs/api/README.md#fleet-management-milestone-7q--seventeenth-business-module).
+      - [x] **Logistics & Delivery Tracking** — shipments that carry
+            goods from a warehouse to a destination, with an
+            append-only delivery tracking timeline. Dispatching is the
+            pivotal action and composes three modules in one
+            transaction: it deducts Inventory stock, opens a Fleet trip
+            on the assigned vehicle (which must be active), and can
+            settle against a Sales order — rolling back as a unit if
+            stock is short. A failed delivery returns the stock.
+            Closing the trip stays Fleet's job, since that needs a real
+            end-odometer reading. Full CRUD + GraphQL,
+            summary/by-status reports with a delivered rate computed
+            over finished attempts only, CSV export, RBAC, audit
+            logging. See
+            [docs/api](docs/api/README.md#logistics--delivery-tracking-milestone-7r--eighteenth-business-module).
+      - [x] **Document Management System** — a folder tree, controlled
+            documents, and an append-only revision history. Introduces
+            the first concurrency control in the codebase: an exclusive
+            check-out lock, where a second user attempting to edit gets
+            a 409 naming the holder, and check-in appends the next
+            version and releases the lock in one transaction. Moving a
+            folder into its own subtree is rejected by an
+            arbitrary-depth ancestor walk. Binary storage reuses the
+            existing S3/Attachment layer rather than being
+            re-implemented. Full CRUD + GraphQL, summary/by-status
+            reports, CSV export, RBAC, audit logging. See
+            [docs/api](docs/api/README.md#document-management-system-milestone-7s--nineteenth-business-module).
+      - [x] **Subscription Billing** — the first module built around
+            recurrence. Plans carry a billing interval that drives both
+            period arithmetic and MRR normalisation; billing raises a
+            real Sales invoice, links it to the period, and advances the
+            period by exactly one interval, all in one transaction.
+            Periods tile contiguously (a 31 January start rolls to 3
+            March rather than clamping, so no service is dropped), and a
+            period can never be charged twice — enforced by a unique key
+            as well as a pre-check. Trials must be activated before they
+            can bill. MRR counts only active subscriptions, normalised
+            so yearly and quarterly plans sum with monthly ones. Full
+            CRUD + GraphQL, summary/by-status reports, CSV export, RBAC,
+            audit logging. See
+            [docs/api](docs/api/README.md#subscription-billing-milestone-7t--twentieth-business-module).
+      - [ ] The rest.
+
+## Getting started (local development)
+
+Prerequisites: Node.js 20+, pnpm 9+, Docker (for Postgres/Redis/
+Elasticsearch/MinIO). Redis must be running for the API to boot — the
+job queue (BullMQ) connects to it at startup.
 
 ```bash
-# 1. Backend
-cd backend
-cp .env.example .env            # edit DATABASE_URL / JWT secrets as needed
-npm install
-npx prisma migrate dev          # creates the schema
-npx ts-node --transpile-only prisma/seed.ts   # optional: seed a demo org
-npm run dev                     # http://localhost:4000
+# 1. Install dependencies
+pnpm install
 
-# 2. Web app (separate terminal)
-cd web
-cp .env.example .env
-npm install
-npm run dev                     # http://localhost:5173
+# 2. Start infra (Postgres, Redis, Elasticsearch, MinIO)
+docker compose up postgres redis elasticsearch minio -d
+
+# 3. Configure env
+cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.example apps/web/.env
+cp apps/worker/.env.example apps/worker/.env
+cp packages/database/.env.example packages/database/.env
+
+# 4. Apply migrations and seed demo data
+pnpm db:migrate
+pnpm db:seed
+
+# 5. Run the apps (web, api, and worker together)
+pnpm dev
 ```
 
-Seeded demo login (after running the seed script): organization slug
-`docentra-demo`, email `admin@docentra-demo.com`, password `Admin@12345`.
+- API: http://localhost:4000/api/v1 (Swagger docs at `/api/docs`,
+  GraphQL at `/api/v1/graphql`)
+- Web: http://localhost:3000 — sign in at `/login` and land on the dashboard
+- Worker: no HTTP surface — runs in the background processing queued
+  jobs (session cleanup, webhook delivery); logs to stdout
 
-### Mobile
-
-The Flutter SDK is not available in the environment this project was built
-in, so `mobile/` contains complete Dart source but not the generated native
-`android/`/`ios/` project folders. See [mobile/README.md](mobile/README.md)
-for the one-time `flutter create .` step to scaffold them.
+Seeded demo login: company slug `omniflow-demo`, email
+`admin@omniflow-demo.com`, password `Admin@12345` — or register your own
+company from the API directly via `POST /auth/register` (there's no
+sign-up page in the web app yet; see
+[docs/api](docs/api/README.md#authentication)).
 
 ## Running with Docker Compose
 
 ```bash
-cp .env.example .env   # edit secrets before any non-local deployment
+cp .env.example .env
 docker compose up --build
 ```
-
-This starts PostgreSQL, MinIO (S3-compatible storage, with an init step that
-creates the bucket), the backend API (runs `prisma migrate deploy` on boot),
-and the web app served by Nginx (which reverse-proxies `/api` and
-`/socket.io` to the backend). Web UI: `http://localhost:8080`. MinIO console:
-`http://localhost:9001`.
-
-### Docker caveat in this development session
-
-The Dockerfiles and `docker-compose.yml` were written following standard
-multi-stage build practice and validated with `docker compose config` (which
-parses and fully resolves the compose file). However, **this sandboxed
-development session's network policy blocks pulls from Docker Hub**
-(`docker.io` / its CloudFront CDN returned policy-denied 403s when this was
-attempted), so `docker compose up --build` could not be executed end-to-end
-here to confirm the images actually build and boot. Test this in an
-environment with normal Docker Hub access before relying on it in production.
 
 ## Testing
 
 ```bash
-# Backend: 20 Jest + Supertest integration tests against a real Postgres DB
-cd backend
-createdb docentra_test    # or point TEST_DATABASE_URL at an existing one
-npm test
-
-# Web: Vitest + Testing Library
-cd web
-npm test
+pnpm test        # unit tests, all apps/packages
+pnpm test:e2e     # end-to-end tests (api)
 ```
-
-The backend suite and the web app were both additionally verified manually
-in this session: the backend via direct `curl` smoke tests of every module
-(auth/MFA, documents/OCR/search, workflow approval, e-signature signing +
-verification), and the web app via a scripted Playwright run driving a real
-Chromium browser through registration → login → folder creation → upload →
-OCR search → executive dashboard → admin users, confirming each screen
-renders real data end-to-end.
 
 ## Documentation
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — module layout, data model, security model
-- [docs/API.md](docs/API.md) — REST endpoint reference
-- [backend/.env.example](backend/.env.example), [web/.env.example](web/.env.example) — configuration
+See [docs/](docs/) for architecture, database, API, installation,
+deployment, and user/admin manuals — expanded alongside each milestone.

@@ -1,0 +1,23 @@
+# Non-secret configuration. Secrets (JWT keys, DB/Redis URLs with
+# credentials, S3 keys) live in secret.example.yaml — copy it, fill in
+# real values, and apply it separately (never commit the filled-in file).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: omniflow-api-config
+data:
+  NODE_ENV: "production"
+  PORT: "4000"
+  CORS_ORIGIN: "https://app.example.com"
+  S3_REGION: "us-east-1"
+  S3_BUCKET: "omniflow"
+  JWT_ACCESS_EXPIRES_IN: "15m"
+  JWT_REFRESH_EXPIRES_IN: "7d"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: omniflow-web-config
+data:
+  NEXT_PUBLIC_API_URL: "https://api.example.com/api/v1"
+  NEXT_PUBLIC_SOCKET_URL: "https://api.example.com"

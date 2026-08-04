@@ -1,0 +1,39 @@
+# Path-based routing on a single host, matching the nginx reverse-proxy
+# setup in infra/nginx (single-host Docker Compose deploys use that
+# instead; this is the equivalent for an Ingress-controller cluster).
+# Swap the host and add a TLS block (cert-manager annotation or a
+# pre-provisioned Secret) for a real deployment.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: omniflow
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "25m" # matches the attachment upload limit
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: omniflow-api
+                port:
+                  number: 4000
+          - path: /socket.io
+            pathType: Prefix
+            backend:
+              service:
+                name: omniflow-api
+                port:
+                  number: 4000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: omniflow-web
+                port:
+                  number: 3000

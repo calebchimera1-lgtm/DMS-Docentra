@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: omniflow-api
+  labels:
+    app: omniflow-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: omniflow-api
+  template:
+    metadata:
+      labels:
+        app: omniflow-api
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: api
+          image: omniflow-api:latest
+          ports:
+            - containerPort: 4000
+          envFrom:
+            - configMapRef:
+                name: omniflow-api-config
+            - secretRef:
+                name: omniflow-api-secrets
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 4000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 4000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: omniflow-api
+spec:
+  selector:
+    app: omniflow-api
+  ports:
+    - port: 4000
+      targetPort: 4000
