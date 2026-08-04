@@ -42,3 +42,13 @@ rationale).
   `--chart-gridline` in `globals.css`) that swap between the skill's
   validated light/dark steps — no legend, since a single series is
   already named by the card title.
+- **Theme is Odoo-inspired**: because every color in the UI already
+  flowed through the CSS custom properties in `globals.css`
+  (`--primary`, `--background`, `--muted`, `--border`, consumed via
+  Tailwind's `hsl(var(--x))` pattern in `tailwind.config.ts`), retargeting
+  the whole app's look was a tokens-only change — no component edits.
+  `--primary` is now Odoo's brand purple (`#714B67`), `--radius` dropped
+  to `0.25rem` for Odoo's flatter/tighter corners, and the body font is
+  Roboto (`next/font/google` in `app/layout.tsx`, exposed as
+  `--font-roboto`), matching Odoo's backend typeface. Both light and dark
+  variants were re-tuned so the purple accent stays legible in both.
